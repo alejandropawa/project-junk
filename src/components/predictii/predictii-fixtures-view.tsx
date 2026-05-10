@@ -165,7 +165,7 @@ export function PredictiiFixturesView({
     };
 
     void tick();
-    const id = window.setInterval(tick, 48_000);
+    const id = window.setInterval(tick, 60_000);
 
     return () => {
       cancelled = true;

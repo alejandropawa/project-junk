@@ -16,9 +16,17 @@ export const dynamic = "force-dynamic";
 
 const TEN_MIN_MS = 10 * 60 * 1000;
 
+const ENGINE_ATTEMPTS = 6;
+const UPSERT_ATTEMPTS = 4;
+const RETRY_DELAY_MS = 2_000;
+
+function sleep(ms: number): Promise<void> {
+  return new Promise((resolve) => setTimeout(resolve, ms));
+}
+
 /**
- * Cron (~5 minute) — generare automată în fereastra **[T−10 minute, T)** (10 minute înainte
- * de start până la fluier). Motor Probix + persistare predicție unică în `prediction_reports`.
+ * Cron (~5 minute) — generare de la **T−10 minute** până la salvare: include meciuri **live**
+ * dacă predicția lipsește (reîncercări la fiecare ciclu + reîncercări scurte în aceeași cerere).
  * Odds API e opțional (cote de referință dacă `ODDS_API_KEY` e setat).
  */
 export async function GET(req: Request) {
@@ -65,11 +73,11 @@ export async function GET(req: Request) {
   let processed = 0;
 
   for (const f of data.fixtures) {
-    if (f.bucket !== "upcoming") continue;
+    if (f.bucket !== "upcoming" && f.bucket !== "live") continue;
 
     const kickMs = f.timestamp * 1000;
-    const inTenMinWindow = now >= kickMs - TEN_MIN_MS && now < kickMs;
-    if (!inTenMinWindow) continue;
+    const eligibleFromTenMinBefore = now >= kickMs - TEN_MIN_MS;
+    if (!eligibleFromTenMinBefore) continue;
 
     if (!PROBIX_ENGINE_LEAGUE_IDS.has(f.leagueId)) {
       notices.push(`skip engine league ${f.leagueId}`);
@@ -78,9 +86,16 @@ export async function GET(req: Request) {
 
     if (await predictionExists(sb, f.id, data.date)) continue;
 
-    const engineOut = await runProbixEngine(f);
+    let engineOut: Awaited<ReturnType<typeof runProbixEngine>> | null = null;
+    for (let attempt = 0; attempt < ENGINE_ATTEMPTS; attempt++) {
+      engineOut = await runProbixEngine(f);
+      if (engineOut) break;
+      if (attempt < ENGINE_ATTEMPTS - 1) await sleep(RETRY_DELAY_MS);
+    }
     if (!engineOut) {
-      notices.push(`motor: date insuficiente sau echipe IDS lipsă (${f.id})`);
+      notices.push(
+        `motor: fără predicție după ${ENGINE_ATTEMPTS} încercări (${f.id})`,
+      );
       continue;
     }
 
@@ -112,17 +127,29 @@ export async function GET(req: Request) {
       payload = enrichPayloadWithOddsSnapshot(payload, oddsBody, bookmakers);
     }
 
-    const okRow = await upsertPrediction(sb, {
-      fixture_id: f.id,
-      date_ro: data.date,
-      home_name: f.homeName,
-      away_name: f.awayName,
-      league_name: f.leagueName,
-      kickoff_iso: f.kickoffIso,
-      payload,
-    });
-    if (okRow) processed += 1;
-    else notices.push(`Supabase upsert eșuat ${f.id}`);
+    let saved = false;
+    for (let attempt = 0; attempt < UPSERT_ATTEMPTS; attempt++) {
+      const okRow = await upsertPrediction(sb, {
+        fixture_id: f.id,
+        date_ro: data.date,
+        home_name: f.homeName,
+        away_name: f.awayName,
+        league_name: f.leagueName,
+        kickoff_iso: f.kickoffIso,
+        payload,
+      });
+      if (okRow) {
+        processed += 1;
+        saved = true;
+        break;
+      }
+      if (attempt < UPSERT_ATTEMPTS - 1) await sleep(RETRY_DELAY_MS);
+    }
+    if (!saved) {
+      notices.push(
+        `Supabase upsert eșuat după ${UPSERT_ATTEMPTS} încercări (${f.id})`,
+      );
+    }
   }
 
   revalidatePath("/predictii");
