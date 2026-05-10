@@ -1,0 +1,33 @@
+import type { ProbixEngineOutput } from "@/lib/probix-engine/types";
+import type { PredictionPayload } from "@/lib/predictions/types";
+
+/** Mapare rezultat motor → payload persistat (JSONB). */
+export function engineOutputToPredictionPayload(
+  out: ProbixEngineOutput,
+  opts?: { oddsApiEventId?: number },
+): PredictionPayload {
+  const picks = out.picks.map((p) => ({
+    marketLabel: p.label,
+    selection: p.selection,
+    decimal: p.estimatedDecimal,
+    marketId: p.marketId,
+  }));
+
+  const narrative = out.explanationBullets.slice(0, 6).join("\n");
+
+  return {
+    generatedAt: new Date().toISOString(),
+    oddsApiEventId: opts?.oddsApiEventId ?? 0,
+    picks,
+    confidenceAvg: Number(out.confidenceAvg.toFixed(4)),
+    confidenceScore: out.confidenceScore,
+    explanationBullets: out.explanationBullets,
+    narrative,
+    riskRating: out.riskRating,
+    estimatedCombinedDecimal: out.estimatedCombinedDecimal,
+    engineVersion: out.engineVersion,
+    settlement: "pending",
+    /** Metadate deterministic (fără date personale). */
+    modelClass: "probix-deterministic-stats",
+  };
+}

@@ -1,26 +1,343 @@
 @import "tailwindcss";
+@import "tw-animate-css";
+@import "../styles/shadcn-tailwind.css";
+
+@custom-variant dark (&:is(.dark *));
+
+/* ─── Probix analytical design system (CSS variables ↔ design-tokens.ts) ─── */
 
 :root {
-  --background: #ffffff;
-  --foreground: #171717;
+  color-scheme: dark;
+
+  /* Backgrounds */
+  --background: #0b1020;
+  --background-secondary: #111827;
+  --elevated: #1a2236;
+
+  /* Text */
+  --foreground: #f8fafc;
+  --foreground-secondary: #94a3b8;
+  --foreground-muted: #64748b;
+
+  /* Brand */
+  --probix-blue: #3b82f6;
+  --probix-blue-hover: #2563eb;
+  --probix-purple: #8b5cf6;
+
+  /* Semantic */
+  --success: #22c55e;
+  --destructive: #ef4444;
+  --warning: #f59e0b;
+
+  /* Shadcn interoperability */
+  --card: #1a2236;
+  --card-foreground: #f8fafc;
+  --popover: #1a2236;
+  --popover-foreground: #f8fafc;
+  --primary: #3b82f6;
+  --primary-foreground: #f8fafc;
+  --secondary: #111827;
+  --secondary-foreground: #f8fafc;
+  --muted: #111827;
+  --muted-foreground: #94a3b8;
+  --accent: rgba(59, 130, 246, 0.12);
+  --accent-foreground: #93c5fd;
+  --border: rgba(255, 255, 255, 0.06);
+  --input: rgba(255, 255, 255, 0.08);
+  --ring: #3b82f6;
+  --radius: 0.625rem;
+
+  --gradient-hero: linear-gradient(
+    135deg,
+    rgba(59, 130, 246, 0.15),
+    rgba(139, 92, 246, 0.08)
+  );
+  --gradient-mesh: radial-gradient(
+    ellipse 100% 80% at 50% -35%,
+    rgba(59, 130, 246, 0.14),
+    transparent 52%
+  );
+  --shadow-pb-card:
+    inset 0 1px 0 rgba(255, 255, 255, 0.04),
+    0 8px 32px -12px rgba(0, 0, 0, 0.55);
+  --shadow-pb-card-hover:
+    inset 0 1px 0 rgba(255, 255, 255, 0.06),
+    0 14px 42px -12px rgba(59, 130, 246, 0.14);
+  --transition-pb: 200ms cubic-bezier(0.4, 0, 0.2, 1);
+
+  /**
+   * Lățime conținut pe ecrane late: ~60% din viewport ⇒ ~20% spațiu liber lateral.
+   * `max(…, 64rem)` păstrează o lățime minimă confortabilă pe laptop.
+   */
+  --pb-shell-max-w: min(100%, max(64rem, 60vw));
+}
+
+.dark {
+  --background: #0b1020;
+  --foreground: #f8fafc;
+  --card: #1a2236;
+  --card-foreground: #f8fafc;
+  --popover: #1a2236;
+  --popover-foreground: #f8fafc;
+  --primary: #3b82f6;
+  --primary-foreground: #f8fafc;
+  --secondary: #111827;
+  --secondary-foreground: #f8fafc;
+  --muted: #111827;
+  --muted-foreground: #94a3b8;
+  --accent: rgba(139, 92, 246, 0.1);
+  --accent-foreground: #c4b5fd;
+  --destructive: #ef4444;
+  --border: rgba(255, 255, 255, 0.06);
+  --input: rgba(255, 255, 255, 0.09);
+  --ring: #3b82f6;
 }
 
 @theme inline {
   --color-background: var(--background);
   --color-foreground: var(--foreground);
-  --font-sans: var(--font-geist-sans);
-  --font-mono: var(--font-geist-mono);
+  --color-background-secondary: var(--background-secondary);
+  --color-elevated: var(--elevated);
+  --color-foreground-secondary: var(--foreground-secondary);
+  --color-foreground-muted: var(--foreground-muted);
+  --color-probix-blue: var(--probix-blue);
+  --color-probix-blue-hover: var(--probix-blue-hover);
+  --color-probix-purple: var(--probix-purple);
+  --color-success: var(--success);
+  --color-warning: var(--warning);
+
+  --color-sidebar-ring: var(--ring);
+  --color-sidebar-border: var(--border);
+  --color-sidebar-accent-foreground: var(--foreground);
+  --color-sidebar-accent: var(--muted);
+  --color-sidebar-primary-foreground: var(--primary-foreground);
+  --color-sidebar-primary: var(--primary);
+  --color-sidebar-foreground: var(--foreground);
+  --color-sidebar: var(--background-secondary);
+  --color-ring: var(--ring);
+  --color-input: var(--input);
+  --color-border: var(--border);
+  --color-destructive: var(--destructive);
+  --color-accent-foreground: var(--accent-foreground);
+  --color-accent: var(--accent);
+  --color-muted-foreground: var(--muted-foreground);
+  --color-muted: var(--muted);
+  --color-secondary-foreground: var(--secondary-foreground);
+  --color-secondary: var(--secondary);
+  --color-primary-foreground: var(--primary-foreground);
+  --color-primary: var(--primary);
+  --color-popover-foreground: var(--popover-foreground);
+  --color-popover: var(--popover);
+  --color-card-foreground: var(--card-foreground);
+  --color-card: var(--card);
+
+  --spacing-section: clamp(3.5rem, 8vw, 5rem);
+  --spacing-section-lg: clamp(4.5rem, 12vw, 7rem);
+  --spacing-container-x: clamp(1.25rem, 4vw, 2rem);
+
+  --radius-sm: 0.5rem;
+  --radius-md: 0.625rem;
+  --radius-lg: 0.75rem;
+  --radius-xl: 1rem;
+  --radius-2xl: 1.25rem;
+  --radius-3xl: 1.5rem;
+  --radius-card: 24px;
+
+  --shadow-pb-card: var(--shadow-pb-card);
+  --shadow-pb-card-hover: var(--shadow-pb-card-hover);
 }
 
-@media (prefers-color-scheme: dark) {
-  :root {
-    --background: #0a0a0a;
-    --foreground: #ededed;
+/* Analytical grid - calm, not sportsbook */
+.probix-grid {
+  background-image:
+    linear-gradient(rgba(255, 255, 255, 0.025) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(255, 255, 255, 0.025) 1px, transparent 1px);
+  background-size: 56px 56px;
+}
+
+.probix-ambient {
+  background-image: var(--gradient-mesh), var(--gradient-hero);
+}
+
+@layer base {
+  * {
+    @apply border-border outline-ring/40;
+  }
+  html {
+    @apply font-sans antialiased;
+    scroll-behavior: auto;
+    scroll-padding-top: 5.75rem;
+  }
+  body {
+    @apply min-h-screen bg-background text-foreground;
   }
 }
 
-body {
-  background: var(--background);
-  color: var(--foreground);
-  font-family: Arial, Helvetica, sans-serif;
+@layer components {
+  /* Glass card system */
+  .pb-card {
+    border-radius: var(--radius-card);
+    border: 1px solid rgba(255, 255, 255, 0.06);
+    background: rgba(17, 24, 39, 0.75);
+    backdrop-filter: blur(12px);
+    -webkit-backdrop-filter: blur(12px);
+    box-shadow: var(--shadow-pb-card);
+    transition:
+      transform var(--transition-pb),
+      box-shadow var(--transition-pb),
+      border-color var(--transition-pb);
+  }
+  .pb-card:hover {
+    transform: translateY(-2px);
+    box-shadow: var(--shadow-pb-card-hover);
+    border-color: rgba(255, 255, 255, 0.09);
+  }
+  .pb-card-static {
+    border-radius: var(--radius-card);
+    border: 1px solid rgba(255, 255, 255, 0.06);
+    background: rgba(17, 24, 39, 0.75);
+    backdrop-filter: blur(12px);
+    -webkit-backdrop-filter: blur(12px);
+    box-shadow: var(--shadow-pb-card);
+  }
+  .pb-shell-inner {
+    width: 100%;
+    max-width: var(--pb-shell-max-w);
+    margin-left: auto;
+    margin-right: auto;
+  }
+  .pb-container {
+    width: 100%;
+    max-width: min(100%, max(72rem, 60vw));
+    margin-left: auto;
+    margin-right: auto;
+    padding-left: var(--spacing-container-x);
+    padding-right: var(--spacing-container-x);
+  }
+  .pb-container-wide {
+    max-width: min(100%, max(80rem, 60vw));
+  }
+}
+
+@layer utilities {
+  .pb-text-hero {
+    @apply text-[clamp(2.25rem,5vw,3.75rem)] font-semibold tracking-[-0.03em] leading-[1.08] text-foreground;
+  }
+  .pb-text-section {
+    @apply text-[clamp(1.375rem,2.5vw,1.75rem)] font-semibold tracking-[-0.022em] leading-tight text-foreground;
+  }
+  .pb-text-card-title {
+    @apply text-base font-medium tracking-[-0.015em] text-foreground;
+  }
+  .pb-text-body {
+    @apply text-[0.9375rem] leading-relaxed text-foreground-secondary;
+  }
+  .pb-text-label {
+    @apply text-xs font-medium uppercase tracking-wide text-foreground-muted;
+  }
+  .pb-text-caption {
+    @apply text-xs leading-normal text-foreground-muted;
+  }
+  .pb-section-y {
+    padding-top: var(--spacing-section);
+    padding-bottom: var(--spacing-section);
+  }
+  .pb-section-y-lg {
+    padding-top: var(--spacing-section-lg);
+    padding-bottom: var(--spacing-section-lg);
+  }
+  .pb-focus-ring {
+    @apply focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/50 focus-visible:ring-offset-2 focus-visible:ring-offset-background;
+  }
+  @keyframes pb-pulse-soft {
+    0%,
+    100% {
+      opacity: 1;
+    }
+    50% {
+      opacity: 0.5;
+    }
+  }
+  .pb-live-pulse {
+    animation: pb-pulse-soft 2s ease-in-out infinite;
+  }
+  @media (prefers-reduced-motion: reduce) {
+    .pb-live-pulse {
+      animation: none;
+    }
+    .pb-card {
+      transition: none;
+    }
+    .pb-card:hover {
+      transform: none;
+    }
+    .pb-prediction-card-shell {
+      transition: none;
+    }
+    .pb-prediction-card-shell:hover {
+      transform: none;
+    }
+    .animate-ping {
+      animation: none;
+    }
+  }
+
+  .pb-progress-track-indeterminate {
+    position: relative;
+    overflow: hidden;
+  }
+
+  .pb-progress-track-indeterminate::after {
+    content: "";
+    position: absolute;
+    inset-block: 0;
+    inset-inline-start: 0;
+    width: 30%;
+    border-radius: inherit;
+    background: linear-gradient(
+      90deg,
+      transparent,
+      rgba(59, 130, 246, 0.28),
+      transparent
+    );
+    animation: pb-indeterminate-slide 1.35s ease-in-out infinite;
+  }
+
+  @keyframes pb-indeterminate-slide {
+    0% {
+      transform: translateX(-120%);
+    }
+    100% {
+      transform: translateX(420%);
+    }
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    .pb-progress-track-indeterminate::after {
+      animation: none;
+      opacity: 0.35;
+    }
+  }
+
+  /** Lift + glow pentru carduri predicții (păstrează fundal fix din design system). */
+  .pb-prediction-card-shell {
+    border-radius: var(--radius-card);
+    border: 1px solid rgba(255, 255, 255, 0.06);
+    background: rgba(17, 24, 39, 0.75);
+    backdrop-filter: blur(12px);
+    -webkit-backdrop-filter: blur(12px);
+    box-shadow: var(--shadow-pb-card);
+    transition:
+      transform var(--transition-pb),
+      box-shadow var(--transition-pb),
+      border-color var(--transition-pb);
+  }
+
+  .pb-prediction-card-shell:hover {
+    transform: translateY(-2px);
+    box-shadow:
+      var(--shadow-pb-card-hover),
+      0 0 32px -12px rgba(59, 130, 246, 0.14);
+    border-color: rgba(59, 130, 246, 0.16);
+  }
 }

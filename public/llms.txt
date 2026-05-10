@@ -1,0 +1,17 @@
+# Probix
+> Platformă analitică pentru fotbal (România). Nu este o casă de pariuri.
+
+## Descriere
+Probix oferă predicții pre-meci transparente, meciuri live cu statistici și istoric verificabil, orientate spre analiză și context.
+
+## Pagini utile
+- / — pagina principală
+- /predictii — predicții și meciuri tratate
+- /meciuri — calendar meciuri live (ligile urmărite)
+- /istoric — istoric public predicții rezolvate
+- /termeni — termeni și condiții
+- /politica-confidentialitate — politică de confidențialitate
+- /politica-cookies-disclaimer — politică cookies și disclaimer informativ (redirect permanent de la /cookies)
+
+## Contact / produs
+Consultați footer-ul site-ului pentru informații legale și structură de navigare.
