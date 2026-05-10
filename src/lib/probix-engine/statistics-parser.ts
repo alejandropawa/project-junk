@@ -168,6 +168,19 @@ export function parseTeamStatistics(
   let sotAvg: number | null = null;
   if (on && typeof on === "object") sotAvg = avgTriplet(on).total ?? null;
 
+  let foulsCommittedAvg: number | null = null;
+  const foulsBlock = payload.fouls as Record<string, unknown> | undefined;
+  if (foulsBlock && typeof foulsBlock === "object") {
+    const committed = (
+      foulsBlock as { committed?: unknown; for?: unknown }
+    ).committed;
+    const forBlk = (foulsBlock as { for?: unknown }).for;
+    if (typeof committed === "object")
+      foulsCommittedAvg = avgTriplet(committed).total;
+    else if (typeof forBlk === "object")
+      foulsCommittedAvg = avgTriplet(forBlk).total;
+  }
+
   const possessionSrc =
     (payload.ball_possession as Record<string, unknown> | undefined) ??
     (payload.possession as Record<string, unknown> | undefined);
@@ -197,6 +210,7 @@ export function parseTeamStatistics(
     cornersForAvg: cornersAvg,
     yellowAvg,
     redAvg,
+    foulsCommittedAvg,
     shotsOnTargetForAvg: sotAvg,
     shotsTotalForAvg: totalShots > 0 ? totalShots : null,
     possessionAvg,
@@ -229,6 +243,7 @@ export function deriveProfileFromIncomplete(
     cornersForAvg: partial?.cornersForAvg ?? null,
     yellowAvg: partial?.yellowAvg ?? null,
     redAvg: partial?.redAvg ?? null,
+    foulsCommittedAvg: partial?.foulsCommittedAvg ?? null,
     shotsOnTargetForAvg: partial?.shotsOnTargetForAvg ?? null,
     shotsTotalForAvg: partial?.shotsTotalForAvg ?? null,
     possessionAvg: partial?.possessionAvg ?? null,

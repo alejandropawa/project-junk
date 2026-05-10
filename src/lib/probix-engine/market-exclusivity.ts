@@ -1,31 +1,30 @@
 /**
- * O combinație nu poate include două selecții din același tip de „piață”
- * (ex. peste 1.5 goluri și peste 2.5 goluri).
+ * O combinație: maximum o piață din fiecare familie (goluri total, cornere, cartonașe,
+ * faulturi, șanse duble, BTTS).
  */
+
 export const EXCLUSIVE_TOTAL_GOALS_LINE_BUCKET = "__total_goals_threshold__";
 
-export const EXCLUSIVE_CORNERS_OVER_BUCKET = "__corners_over_threshold__";
+export const EXCLUSIVE_CORNERS_TOTAL_BUCKET = "__corners_total_threshold__";
 
-export const EXCLUSIVE_CARDS_OVER_BUCKET = "__cards_over_threshold__";
+export const EXCLUSIVE_CARDS_TOTAL_BUCKET = "__cards_total_threshold__";
+
+export const EXCLUSIVE_FOULS_TOTAL_BUCKET = "__fouls_total_threshold__";
+
+export const EXCLUSIVE_DOUBLE_CHANCE_BUCKET = "__double_chance__";
+
+export const EXCLUSIVE_BTTS_BUCKET = "__btts_yes_no__";
 
 export function marketExclusivityBucket(marketId: string): string | null {
-  switch (marketId) {
-    case "goals_o15":
-    case "goals_o25":
-    case "goals_u25":
-      return EXCLUSIVE_TOTAL_GOALS_LINE_BUCKET;
-    case "corners_o85":
-    case "corners_o95":
-      return EXCLUSIVE_CORNERS_OVER_BUCKET;
-    case "cards_o35":
-    case "cards_o45":
-      return EXCLUSIVE_CARDS_OVER_BUCKET;
-    default:
-      return null;
-  }
+  if (marketId.startsWith("goals_")) return EXCLUSIVE_TOTAL_GOALS_LINE_BUCKET;
+  if (marketId.startsWith("corners_")) return EXCLUSIVE_CORNERS_TOTAL_BUCKET;
+  if (marketId.startsWith("cards_")) return EXCLUSIVE_CARDS_TOTAL_BUCKET;
+  if (marketId.startsWith("fouls_")) return EXCLUSIVE_FOULS_TOTAL_BUCKET;
+  if (marketId.startsWith("dc_")) return EXCLUSIVE_DOUBLE_CHANCE_BUCKET;
+  if (marketId.startsWith("btts_")) return EXCLUSIVE_BTTS_BUCKET;
+  return null;
 }
 
-/** True dacă `candidate` este în conflict cu cel puțin un picior din `chosen`. */
 export function exclusiveMarketConflict(
   candidateMarketId: string,
   chosen: { marketId: string }[],
@@ -37,10 +36,6 @@ export function exclusiveMarketConflict(
   );
 }
 
-/**
- * Fallback dur: păstrează ordinea și elimină dubluri (același `marketId`) sau
- * selecții din același bucket exclusiv (ex. două linii de goluri totale).
- */
 export function dedupeExclusiveMarketOrder<T extends { marketId?: string }>(
   picks: readonly T[],
 ): T[] {

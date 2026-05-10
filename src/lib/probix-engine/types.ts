@@ -7,7 +7,9 @@ export type MarketFamily =
   | "goals_low"
   | "corners"
   | "cards"
-  | "result_safe";
+  | "fouls"
+  | "result_safe"
+  | "btts";
 
 export type MarketCandidate = {
   marketId: string;
@@ -40,6 +42,8 @@ export type TeamProfile = {
   cornersForAvg: number | null;
   yellowAvg: number | null;
   redAvg: number | null;
+  /** Faulturi comise (medie / meci) dacă apare în /teams/statistics. */
+  foulsCommittedAvg: number | null;
   shotsOnTargetForAvg: number | null;
   shotsTotalForAvg: number | null;
   possessionAvg: number | null;
@@ -63,6 +67,8 @@ export type ProbixFeatures = {
   awayConcede: number;
   cornerPace: number;
   cardTempo: number;
+  /** Ritm combinat faulturi (proxy). */
+  foulPace: number;
   formStrengthHome: number;
   formStrengthAway: number;
   dataQuality01: number;

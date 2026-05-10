@@ -1,8 +1,8 @@
 import {
-  CORRELATION_FAMILIES,
   CORRELATION_PENALTY,
   MAX_LEGS,
   MAX_PROB_PRODUCT,
+  MIN_COMBINED_DECIMAL_PROBIX,
   MIN_LEGS,
   MIN_MARKET_CONFIDENCE,
   MIN_MARKET_CONFIDENCE_LEG3,
@@ -10,7 +10,11 @@ import {
   PROBIX_ENGINE_VERSION,
   TARGET_PROB_PRODUCT,
 } from "@/lib/probix-engine/config";
-import { exclusiveMarketConflict } from "@/lib/probix-engine/market-exclusivity";
+import {
+  dedupeExclusiveMarketOrder,
+  exclusiveMarketConflict,
+} from "@/lib/probix-engine/market-exclusivity";
+import * as Corr from "@/lib/probix-engine/market-correlation";
 import type {
   MarketCandidate,
   ProbixFeatures,
@@ -27,18 +31,73 @@ function combinedDecimalEstimate(arr: MarketCandidate[]): number {
 }
 
 function pairwisePenalty(idA: string, idB: string): number {
-  const h = CORRELATION_FAMILIES.high_goals;
-  const l = CORRELATION_FAMILIES.low_goals;
-  const cards = CORRELATION_FAMILIES.cards_high;
+  const hA = Corr.isHighGoalsFamily(idA);
+  const hB = Corr.isHighGoalsFamily(idB);
+  const lA = Corr.isLowGoalsFamily(idA);
+  const lB = Corr.isLowGoalsFamily(idB);
+  const cA = Corr.isCardsHighCorrelated(idA);
+  const cB = Corr.isCardsHighCorrelated(idB);
   let p = 0;
-  if (h.has(idA) && h.has(idB)) p += CORRELATION_PENALTY;
-  if (l.has(idA) && l.has(idB)) p += CORRELATION_PENALTY * 0.85;
-  if ((h.has(idA) && l.has(idB)) || (h.has(idB) && l.has(idA)))
-    p += CORRELATION_PENALTY * 1.35;
-  if (cards.has(idA) && cards.has(idB)) p += CORRELATION_PENALTY * 0.9;
-  if (h.has(idA) && cards.has(idB)) p += CORRELATION_PENALTY * 0.45;
-  if (h.has(idB) && cards.has(idA)) p += CORRELATION_PENALTY * 0.45;
+  if (hA && hB) p += CORRELATION_PENALTY;
+  if (lA && lB) p += CORRELATION_PENALTY * 0.85;
+  if ((hA && lB) || (hB && lA)) p += CORRELATION_PENALTY * 1.35;
+  if (cA && cB) p += CORRELATION_PENALTY * 0.9;
+  if (hA && cB) p += CORRELATION_PENALTY * 0.45;
+  if (hB && cA) p += CORRELATION_PENALTY * 0.45;
+
+  const cnA = Corr.isCornersOverId(idA) || Corr.isCornersUnderId(idA);
+  const cnB = Corr.isCornersOverId(idB) || Corr.isCornersUnderId(idB);
+  const fA = Corr.isFoulsOverId(idA) || Corr.isFoulsUnderId(idA);
+  const fB = Corr.isFoulsOverId(idB) || Corr.isFoulsUnderId(idB);
+  if (cnA && cnB) p += CORRELATION_PENALTY * 0.32;
+  if (fA && fB) p += CORRELATION_PENALTY * 0.28;
+  if ((hA && cnB) || (hB && cnA)) p += CORRELATION_PENALTY * 0.22;
+  if ((lA && cnB) || (lB && cnA)) p += CORRELATION_PENALTY * 0.18;
   return p;
+}
+
+function ensureMinCombinedDecimal(
+  picks: MarketCandidate[],
+  pool: MarketCandidate[],
+): MarketCandidate[] {
+  let out = [...picks];
+  let d = combinedDecimalEstimate(out);
+  if (d >= MIN_COMBINED_DECIMAL_PROBIX) return out;
+
+  const poolSorted = [...pool].sort(
+    (a, b) => b.estimatedDecimal - a.estimatedDecimal,
+  );
+
+  if (out.length < MAX_LEGS) {
+    for (const c of poolSorted) {
+      if (out.some((x) => x.marketId === c.marketId)) continue;
+      if (exclusiveMarketConflict(c.marketId, out)) continue;
+      const trial = [...out, c].slice(0, MAX_LEGS);
+      if (dedupeExclusiveMarketOrder(trial).length !== trial.length) continue;
+      const tpp = probProduct(trial);
+      if (tpp > MAX_PROB_PRODUCT * 1.045) continue;
+      const td = combinedDecimalEstimate(trial);
+      if (td >= MIN_COMBINED_DECIMAL_PROBIX) return trial;
+    }
+  }
+
+  for (const c of poolSorted) {
+    for (let i = 0; i < out.length; i++) {
+      const trial = out.map((item, j) => (j === i ? c : item));
+      if (new Set(trial.map((t) => t.marketId)).size !== trial.length)
+        continue;
+      if (dedupeExclusiveMarketOrder(trial).length !== trial.length) continue;
+      const tpp = probProduct(trial);
+      if (tpp > MAX_PROB_PRODUCT * 1.07) continue;
+      const td = combinedDecimalEstimate(trial);
+      if (td > d) {
+        out = trial;
+        d = td;
+        if (d >= MIN_COMBINED_DECIMAL_PROBIX) return out;
+      }
+    }
+  }
+  return out;
 }
 
 function maxCorrPenaltyFor(id: string, chosen: MarketCandidate[]): number {
@@ -156,6 +215,19 @@ export function selectComboAndRisk(
       }
     }
   }
+
+  picks = ensureMinCombinedDecimal(picks, pool);
+  pp = probProduct(picks);
+  let pairPen = 0;
+  for (let i = 0; i < picks.length; i++) {
+    for (let j = 0; j < i; j++) {
+      pairPen = Math.max(
+        pairPen,
+        pairwisePenalty(picks[i].marketId, picks[j].marketId),
+      );
+    }
+  }
+  maxPenUsed = Math.max(maxPenUsed, pairPen);
 
   const riskRating = riskFrom(picks, f, maxPenUsed);
   const confidenceAvg =

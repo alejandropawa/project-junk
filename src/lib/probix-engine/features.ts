@@ -24,6 +24,14 @@ function cardProxy(team: ProbixEngineInput["home"]): number {
   return 3.2;
 }
 
+function foulProxy(team: ProbixEngineInput["home"]): number {
+  if (team.foulsCommittedAvg != null && team.foulsCommittedAvg >= 8)
+    return team.foulsCommittedAvg;
+  /** Proxy din cartonașe + presiune (când API nu trimite faulturi). */
+  const c = cardProxy(team);
+  return Math.min(32, Math.max(16, c * 7.2));
+}
+
 export function buildProbixFeatures(input: ProbixEngineInput): ProbixFeatures {
   const { home, away, h2h } = input;
 
@@ -38,6 +46,7 @@ export function buildProbixFeatures(input: ProbixEngineInput): ProbixFeatures {
 
   const cornerPace = (cornerProxy(home) + cornerProxy(away)) / 2;
   const cardTempo = (cardProxy(home) + cardProxy(away)) / 2;
+  const foulPace = (foulProxy(home) + foulProxy(away)) / 2;
 
   const formStrengthHome = formStrength(home.formLast5Wdl);
   const formStrengthAway = formStrength(away.formLast5Wdl);
@@ -49,6 +58,8 @@ export function buildProbixFeatures(input: ProbixEngineInput): ProbixFeatures {
     dq += 0.1;
   if (h2h.samples >= 4) dq += 0.1;
   if (home.yellowAvg != null && away.yellowAvg != null) dq += 0.08;
+  if (home.foulsCommittedAvg != null && away.foulsCommittedAvg != null)
+    dq += 0.06;
 
   return {
     lambdaGoals,
@@ -58,6 +69,7 @@ export function buildProbixFeatures(input: ProbixEngineInput): ProbixFeatures {
     awayConcede,
     cornerPace,
     cardTempo,
+    foulPace,
     formStrengthHome,
     formStrengthAway,
     dataQuality01: clamp01(dq),

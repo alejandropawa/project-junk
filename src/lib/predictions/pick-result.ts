@@ -1,4 +1,5 @@
 import type { PredictionPick, PredictionSettlement } from "@/lib/predictions/types";
+import { parseTotalsOuMarketId } from "@/lib/probix-engine/total-market-id";
 import type { NormalizedFixture } from "@/lib/football-api/types";
 
 export type PickResult = "won" | "lost" | "pending" | "void";
@@ -7,82 +8,123 @@ function ceilHalfLine(line: number): number {
   return Math.ceil(line - 1e-9);
 }
 
-/**
- * Pentru UX pe card după **final** sau **live cu scor** (pentru goluri/BTTS/dc).
- * Cornere/fără date agregate rămân `pending` până există stats sau settlement backend.
- */
+function halfLineDecimalRo(line: number): string {
+  return String(line).replace(".", ",");
+}
+
+export type LiveTotalsOpts = {
+  cornersTotal?: number | null;
+  cardsTotal?: number | null;
+  foulsTotal?: number | null;
+};
+
+function foulsFromFixture(
+  f: Pick<NormalizedFixture, "liveStatsSplit">,
+): number | null {
+  const s = f.liveStatsSplit;
+  if (!s) return null;
+  const h = s.home.fouls;
+  const a = s.away.fouls;
+  if (h == null || a == null) return null;
+  return h + a;
+}
+
+function facetTotalValue(
+  facet: "goals" | "corners" | "cards" | "fouls",
+  G: number | null,
+  fixture: Pick<NormalizedFixture, "liveStatsSplit">,
+  opts?: LiveTotalsOpts,
+): number | null {
+  switch (facet) {
+    case "goals":
+      return G;
+    case "corners":
+      return opts?.cornersTotal ?? null;
+    case "cards":
+      return opts?.cardsTotal ?? null;
+    case "fouls":
+      return opts?.foulsTotal ?? foulsFromFixture(fixture) ?? null;
+    default:
+      return null;
+  }
+}
+
+function evaluateHalfTotal(
+  over: boolean,
+  line: number,
+  value: number | null,
+  finished: boolean,
+): PickResult {
+  if (value == null) return "pending";
+
+  if (over) {
+    const need = Math.floor(line + 1e-9) + 1;
+    if (value >= need) return "won";
+    return finished ? "lost" : "pending";
+  }
+
+  const maxOk = Math.floor(line + 1e-9);
+  if (value > maxOk) return "lost";
+  return finished ? "won" : "pending";
+}
+
 export function evaluatePickResult(
   fixture: Pick<
     NormalizedFixture,
-    "bucket" | "homeGoals" | "awayGoals"
+    "bucket" | "homeGoals" | "awayGoals" | "liveStatsSplit"
   >,
   pick: PredictionPick,
-  opts?: {
-    cornersTotal?: number | null;
-    cardsTotal?: number | null;
-  },
+  opts?: LiveTotalsOpts,
 ): PickResult {
   const h = fixture.homeGoals;
   const a = fixture.awayGoals;
   const knownScore =
     fixture.bucket !== "upcoming" && h != null && a != null;
   const G = knownScore ? h + a : null;
-
   const finished = fixture.bucket === "finished";
 
+  const spec = pick.marketId ? parseTotalsOuMarketId(pick.marketId) : null;
+  if (spec) {
+    const v = facetTotalValue(spec.facet, G, fixture, opts);
+    return evaluateHalfTotal(spec.over, spec.line, v, finished);
+  }
+
   switch (pick.marketId) {
-    case "goals_o15": {
-      if (G === null) return "pending";
-      return G >= 2 ? "won" : finished ? "lost" : "pending";
-    }
-    case "goals_o25": {
-      if (G === null) return "pending";
-      return G >= 3 ? "won" : finished ? "lost" : "pending";
-    }
-    case "goals_u25": {
-      if (G === null) return "pending";
-      return G <= 2 ? "won" : "lost";
-    }
     case "btts_yes": {
       if (h == null || a == null) return "pending";
       return h >= 1 && a >= 1 ? "won" : finished ? "lost" : "pending";
+    }
+    case "btts_no": {
+      if (h == null || a == null) return "pending";
+      if (h >= 1 && a >= 1) return "lost";
+      return finished ? "won" : "pending";
     }
     case "dc_1x": {
       if (h == null || a == null) return "pending";
       return h >= a ? "won" : finished ? "lost" : "pending";
     }
-    case "corners_o85": {
-      const need = ceilHalfLine(8.5);
-      const c = opts?.cornersTotal ?? null;
-      if (c == null) return "pending";
-      return c >= need ? "won" : finished ? "lost" : "pending";
+    case "dc_x2": {
+      if (h == null || a == null) return "pending";
+      return a >= h ? "won" : finished ? "lost" : "pending";
     }
-    case "corners_o95": {
-      const need = ceilHalfLine(9.5);
-      const c = opts?.cornersTotal ?? null;
-      if (c == null) return "pending";
-      return c >= need ? "won" : finished ? "lost" : "pending";
-    }
-    case "cards_o35": {
-      const need = ceilHalfLine(3.5);
-      const c = opts?.cardsTotal ?? null;
-      if (c == null) return "pending";
-      return c >= need ? "won" : finished ? "lost" : "pending";
+    case "dc_12": {
+      if (h == null || a == null) return "pending";
+      if (!finished) return "pending";
+      return h !== a ? "won" : "lost";
     }
     default:
       return "pending";
   }
 }
 
-/** Deducere pentru tentă card dacă lipsesc `payload.settlement` dar meciul e final. */
 export function deriveComboVisualSettlement(
   fixture: Pick<
     NormalizedFixture,
-    "bucket" | "homeGoals" | "awayGoals"
+    "bucket" | "homeGoals" | "awayGoals" | "liveStatsSplit"
   >,
   picks: PredictionPick[] | undefined,
   backend: PredictionSettlement | undefined,
-  opts?: { cornersTotal?: number | null; cardsTotal?: number | null },
+  opts?: LiveTotalsOpts,
 ): Exclude<PredictionSettlement, "pending"> | "pending" {
   if (backend && backend !== "pending") return backend;
   if (!picks?.length || fixture.bucket !== "finished") return "pending";
@@ -95,52 +137,67 @@ export function deriveComboVisualSettlement(
 }
 
 /**
- * Piață și selecție (română), după `marketId`.
- * Pentru liste/UI preferă **`predictionPickLineRo`** ca text principal — evită „Da”/„Nu” fără context.
+ * Piață și selecție UX; piețele totale O/U sunt generate dinamic din `marketId`.
  *
- * Piațe suportate de motor și evaluare live/settlement:
- * - `goals_o15`, `goals_o25`, `goals_u25` — prag total goluri
- * - `btts_yes` — ambele echipe înscriu
- * - `corners_o85`, `corners_o95` — cornere totale prag
- * - `cards_o35` — galbene combinate prag
- * - `dc_1x` — șansă dublă 1X (gazda nu pierde)
- *
- * Fallback: etichetele din payload (`marketLabel`, `selection`).
+ * Piațe: goluri/cornere/cartonașe/faulturi (o/u + zecimi), BTTS da/nu, șanse duble 1X / X2 / 12.
  */
 export function marketDisplayRo(pick: PredictionPick): {
   market: string;
   selection: string;
 } {
-  const id = pick.marketId;
-  switch (id) {
-    case "goals_o15":
-      return { market: "Total goluri", selection: "Peste 1,5 goluri" };
-    case "goals_o25":
-      return { market: "Total goluri", selection: "Peste 2,5 goluri" };
-    case "goals_u25":
-      return { market: "Total goluri", selection: "Sub 2,5 goluri" };
+  const spec = pick.marketId ? parseTotalsOuMarketId(pick.marketId) : null;
+  if (spec) {
+    const l = halfLineDecimalRo(spec.line);
+    const facetMk =
+      spec.facet === "goals"
+        ? "Total goluri"
+        : spec.facet === "corners"
+          ? "Cornere în meci"
+          : spec.facet === "cards"
+            ? "Cartonașe galbene (combinat)"
+            : "Faulturi în meci";
+    const sel =
+      spec.facet === "goals"
+        ? spec.over
+          ? `Peste ${l} goluri (total)`
+          : `Sub ${l} goluri (total)`
+        : spec.facet === "corners"
+          ? spec.over
+            ? `Peste ${l} cornere`
+            : `Sub ${l} cornere`
+          : spec.facet === "cards"
+            ? spec.over
+              ? `Peste ${l} cartonașe galbene (comb.)`
+              : `Sub ${l} cartonașe galbene (comb.)`
+            : spec.over
+              ? `Peste ${l} faulturi (comb.)`
+              : `Sub ${l} faulturi (comb.)`;
+    return { market: facetMk, selection: sel };
+  }
+
+  switch (pick.marketId) {
     case "btts_yes":
       return {
         market: "Ambele echipe marchează",
-        selection: "Minim un gol marcat de fiecare formație",
+        selection: "Da — minim un gol pentru fiecare",
       };
-    case "corners_o85":
+    case "btts_no":
       return {
-        market: "Cornere (total în meci)",
-        selection: "Peste 8,5 cornere",
-      };
-    case "corners_o95":
-      return {
-        market: "Cornere (total în meci)",
-        selection: "Peste 9,5 cornere",
-      };
-    case "cards_o35":
-      return {
-        market: "Cartonașe galbene (combinat)",
-        selection: "Peste 3,5 la ambele echipe cumulat",
+        market: "Ambele echipe marchează",
+        selection: "Nu — cel puțin o echipă fără gol",
       };
     case "dc_1x":
-      return { market: "Șansă dublă", selection: "1 sau X — gazda nu pierde" };
+      return {
+        market: "Șansă dublă",
+        selection: "1X — gazda nu pierde",
+      };
+    case "dc_x2":
+      return { market: "Șansă dublă", selection: "X2 — oaspeții nu pierd" };
+    case "dc_12":
+      return {
+        market: "Șansă dublă",
+        selection: "12 — fără egal",
+      };
     default:
       return {
         market: pick.marketLabel || "Piață",
@@ -149,25 +206,33 @@ export function marketDisplayRo(pick: PredictionPick): {
   }
 }
 
-/**
- * Linie unică pentru carduri/liste — mereu suficientă context (fără ambiguu „Da” singur).
- */
+/** Linie principală pentru listă (explicită pentru utilizator). */
 export function predictionPickLineRo(pick: PredictionPick): string {
-  const id = pick.marketId ?? "";
-  const ro = marketDisplayRo(pick);
+  const spec = pick.marketId ? parseTotalsOuMarketId(pick.marketId) : null;
+  if (spec) {
+    const l = halfLineDecimalRo(spec.line);
+    const what =
+      spec.facet === "goals"
+        ? "goluri"
+        : spec.facet === "corners"
+          ? "cornere"
+          : spec.facet === "cards"
+            ? "cartonașe galbene (comb.)"
+            : "faulturi (comb.)";
+    return spec.over
+      ? `Peste ${l} ${what} — total în meci`
+      : `Sub ${l} ${what} — total în meci`;
+  }
 
-  switch (id) {
-    case "goals_o15":
-    case "goals_o25":
-    case "goals_u25":
-      return ro.selection;
+  const ro = marketDisplayRo(pick);
+  switch (pick.marketId) {
     case "btts_yes":
       return "Ambele echipe marchează (minim un gol marcat de fiecare)";
-    case "corners_o85":
-    case "corners_o95":
-    case "cards_o35":
-      return ro.selection;
+    case "btts_no":
+      return "Nu marchează ambele echipe (cel puțin una fără gol la final)";
     case "dc_1x":
+    case "dc_x2":
+    case "dc_12":
       return ro.selection;
     default: {
       const market = pick.marketLabel || ro.market;

@@ -133,6 +133,7 @@ export function totalsForPredictions(split: FixtureLiveStatsSplit): {
   cornersTotal: number | null;
   /** Galbene + roșii pentru piețe combo cartonașe. */
   cardsTotal: number | null;
+  foulsTotal: number | null;
 } {
   const hc = split.home.corners;
   const ac = split.away.corners;
@@ -150,12 +151,23 @@ export function totalsForPredictions(split: FixtureLiveStatsSplit): {
         (split.away.redCards ?? 0)
       : null;
 
-  return { cornersTotal, cardsTotal };
+  const hf = split.home.fouls;
+  const af = split.away.fouls;
+  const foulsTotal =
+    hf != null || af != null ? (hf ?? 0) + (af ?? 0) : null;
+
+  return { cornersTotal, cardsTotal, foulsTotal };
 }
 
 export function liveTotalsFromFixture(
   f: NormalizedFixture,
-): { cornersTotal: number | null; cardsTotal: number | null } {
-  if (!f.liveStatsSplit) return { cornersTotal: null, cardsTotal: null };
+): {
+  cornersTotal: number | null;
+  cardsTotal: number | null;
+  foulsTotal: number | null;
+} {
+  if (!f.liveStatsSplit) {
+    return { cornersTotal: null, cardsTotal: null, foulsTotal: null };
+  }
   return totalsForPredictions(f.liveStatsSplit);
 }
