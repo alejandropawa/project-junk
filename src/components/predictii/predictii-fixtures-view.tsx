@@ -1,13 +1,16 @@
 "use client";
 
 import Image from "next/image";
+import { useRouter } from "next/navigation";
 import { useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
+import { createClient } from "@/lib/supabase/client";
 import { PredictionCard } from "@/components/predictii/prediction-card";
 import { Card } from "@/components/ds/card";
 import type { PredictionPayload } from "@/lib/predictions/types";
 import type { PredictionPublicTeaser } from "@/lib/predictions/teaser-utils";
 import { mergeFixturePatch } from "@/lib/football-api/merge-fixture-patch";
 import type { NormalizedFixture } from "@/lib/football-api/types";
+import { isDummyPredictiiFixtureId } from "@/lib/predictii/dummy-preview";
 import { cn } from "@/lib/utils";
 
 type Tab = "all" | "live" | "upcoming" | "finished";
@@ -88,6 +91,7 @@ export function PredictiiFixturesView({
   predictionsByFixtureId,
   predictionTeasersByFixtureId,
 }: PredictiiFixturesViewProps) {
+  const router = useRouter();
   const [tab, setTab] = useState<Tab>("all");
   const [fixtures, setFixtures] = useState(initialFixtures);
   const fixturesRef = useRef(fixtures);
@@ -95,6 +99,33 @@ export function PredictiiFixturesView({
   useLayoutEffect(() => {
     fixturesRef.current = fixtures;
   }, [fixtures]);
+
+  /**
+   * Dacă HTML-ul a fost randat fără sesiune (SSR) dar browserul are sesiune Supabase,
+   * `predictionsUnlocked` și map-ul de predicții rămân goale până la refresh.
+   */
+  useEffect(() => {
+    const supabase = createClient();
+    if (!supabase) return;
+    let cancelled = false;
+    void supabase.auth.getSession().then(({ data: { session } }) => {
+      if (cancelled) return;
+      if (session?.user && !predictionsUnlocked) {
+        router.refresh();
+      }
+    });
+    const {
+      data: { subscription },
+    } = supabase.auth.onAuthStateChange((event) => {
+      if (event === "SIGNED_IN" || event === "SIGNED_OUT") {
+        router.refresh();
+      }
+    });
+    return () => {
+      cancelled = true;
+      subscription.unsubscribe();
+    };
+  }, [predictionsUnlocked, router]);
 
   useEffect(() => {
     queueMicrotask(() => setFixtures(initialFixtures));
@@ -115,6 +146,7 @@ export function PredictiiFixturesView({
       if (cancelled) return;
       const liveIds = fixturesRef.current
         .filter((f) => f.bucket === "live")
+        .filter((f) => !isDummyPredictiiFixtureId(f.id))
         .map((f) => f.id);
       if (liveIds.length === 0) return;
 

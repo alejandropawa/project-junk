@@ -168,20 +168,20 @@ export function PredictionCardLiveMetrics({
 
   return (
     <section
-      className="rounded-xl border border-border/45 bg-[rgba(255,255,255,0.018)] px-2.5 py-2 sm:px-3 sm:py-2.5"
+      className="rounded-xl border border-border/45 bg-muted/15 px-2.5 py-2.5 sm:px-3 sm:py-3"
       aria-label="Indicatori în meci"
     >
-      <p className="text-[11px] font-medium uppercase tracking-wider text-foreground-muted/85">
+      <p className="text-[11px] font-medium uppercase tracking-wider text-foreground/72">
         Meci în cifre
       </p>
       <ul className="mt-2 flex flex-col gap-2">
         {rows.map((r) => (
           <li key={r.key} className="min-w-0 space-y-1">
             <div className="flex items-baseline justify-between gap-3 tabular-nums">
-              <span className="shrink-0 text-[13px] font-medium tracking-tight text-foreground-secondary">
+              <span className="shrink-0 text-[13px] font-medium tracking-tight text-foreground/88">
                 {r.label}
               </span>
-              <span className="min-w-0 truncate text-right text-[13px] font-medium tabular-nums tracking-tight text-foreground-muted">
+              <span className="min-w-0 truncate text-right text-[13px] font-semibold tabular-nums tracking-tight text-foreground">
                 {r.disp}
               </span>
             </div>

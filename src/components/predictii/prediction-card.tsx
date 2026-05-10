@@ -18,6 +18,7 @@ import { deriveLiveProgressRows } from "@/lib/predictions/live-progress";
 import type { LiveProgressRow } from "@/lib/predictions/live-progress";
 import { liveTotalsFromFixture } from "@/lib/football-api/fixture-live-stats";
 import type { NormalizedFixture } from "@/lib/football-api/types";
+import { withoutLegacyProbixBookmakerDisclaimer } from "@/lib/probix-engine/explanations-ro";
 import { LiveBadge, LIVE_BADGE_TEXT_CLASS } from "@/components/ds/live-badge";
 import { MatchTeamsScoreRow } from "@/components/football/match-teams-score-row";
 import { PredictionCardLiveMetrics } from "@/components/predictii/prediction-card-live-metrics";
@@ -32,7 +33,7 @@ const LIVE_STATUS_PULSE = "animate-pulse motion-reduce:animate-none";
 const SECTION_GAP = "gap-2.5";
 
 const UPCOMING_AWAITING_MESSAGE =
-  "Predicția pentru acest meci va fi publicată cu aproximativ 5–10 minute înainte de start.";
+  "Predicția pentru acest meci este generată automat cu aproximativ 10 minute înainte de start.";
 
 export type PredictionCardProps = {
   fixture: NormalizedFixture;
@@ -158,7 +159,7 @@ function CotaIncredereRow({
     <div className="min-w-0 border-t border-border/40 pt-2.5">
       <div className="flex flex-wrap items-start justify-between gap-x-6 gap-y-3">
         <div className="min-w-0 flex-1">
-          <p className="text-[11px] font-medium uppercase tracking-wider text-foreground-muted/90">
+          <p className="text-[11px] font-medium uppercase tracking-wider text-foreground/70">
             Cotă
           </p>
           {combined != null ? (
@@ -172,14 +173,14 @@ function CotaIncredereRow({
               {combined.toFixed(2)}
             </motion.p>
           ) : (
-            <p className="mt-1.5 max-w-[16rem] text-[13px] leading-relaxed text-foreground-muted">
+            <p className="mt-1.5 max-w-[16rem] text-[13px] leading-relaxed text-foreground/75">
               Cotă combinată indisponibilă pentru acest set.
             </p>
           )}
         </div>
 
         <div className="flex min-w-[7rem] shrink-0 flex-col items-end text-right sm:min-w-[8.75rem]">
-          <p className="text-[11px] font-medium uppercase tracking-wider text-foreground-muted/90">
+          <p className="text-[11px] font-medium uppercase tracking-wider text-foreground/70">
             Încredere model
           </p>
           {p != null ? (
@@ -212,7 +213,7 @@ function CotaIncredereRow({
               </div>
             </>
           ) : (
-            <p className="mt-1.5 max-w-[11rem] text-[13px] leading-relaxed text-foreground-muted">
+            <p className="mt-1.5 max-w-[11rem] text-[13px] leading-relaxed text-foreground/75">
               Indisponibilă.
             </p>
           )}
@@ -258,7 +259,7 @@ function ComboProgressStrip({ rows }: { rows: LiveProgressRow[] }) {
                   <p className="text-sm font-medium tracking-tight text-foreground">
                     {row.label}
                   </p>
-                  <p className="mt-0.5 text-[13px] leading-relaxed text-foreground-secondary">
+                  <p className="mt-0.5 text-[13px] leading-relaxed text-foreground/82">
                     {row.detail}
                   </p>
                 </div>
@@ -369,13 +370,13 @@ const PredictionCardInner = ({
     fullPredictionReveal && prediction?.generatedAt ? (
       <time
         dateTime={prediction.generatedAt}
-        className="inline text-[11px] tabular-nums text-foreground-secondary"
+        className="inline text-[11px] tabular-nums text-foreground/85"
       >
         {formatGeneratedShort(prediction.generatedAt)}
       </time>
     ) : (
       <time
-        className="inline text-[11px] tabular-nums text-foreground-secondary"
+        className="inline text-[11px] tabular-nums text-foreground/85"
         dateTime={fixture.kickoffIso}
       >
         {formatClock(fixture.kickoffIso)}
@@ -398,6 +399,13 @@ const PredictionCardInner = ({
     fullPredictionReveal &&
     !prediction?.picks?.length;
 
+  const analysisBulletsShown =
+    prediction?.explanationBullets?.length ?
+      withoutLegacyProbixBookmakerDisclaimer(
+        prediction.explanationBullets,
+      ).slice(0, 5)
+    : [];
+
   /** Același limbaj vizual ca „Analiză” / teaser — fără chenar gradient suplimentar în card. */
   const upcomingAwaitingIntel =
     fullPredictionReveal &&
@@ -405,11 +413,7 @@ const PredictionCardInner = ({
     fixture.bucket === "upcoming";
 
   return (
-    <motion.article
-      initial={reduceMotion ? false : { opacity: 0, y: 8 }}
-      whileInView={reduceMotion ? undefined : { opacity: 1, y: 0 }}
-      viewport={{ once: true, margin: "-28px", amount: 0.08 }}
-      transition={{ duration: 0.38, ease: [0.22, 0.61, 0.36, 1] }}
+    <article
       id={`probix-fixture-${fixture.id}`}
       className={cn(
         "pb-prediction-card-shell group/card flex min-w-0 flex-col",
@@ -432,7 +436,7 @@ const PredictionCardInner = ({
               <span className="text-foreground-muted/75">Generat · </span>
               <time
                 dateTime={prediction.generatedAt}
-                className="inline tabular-nums text-foreground-secondary"
+                className="inline tabular-nums text-foreground/85"
               >
                 {formatGeneratedShort(prediction.generatedAt)}
               </time>
@@ -476,7 +480,7 @@ const PredictionCardInner = ({
 
       {showPredictionLock && hasTeaserOutline ? (
         <div className="rounded-xl border border-border/45 bg-muted/15 px-3 py-2 sm:px-3.5">
-          <div className="flex flex-wrap items-baseline gap-x-3 gap-y-1 text-[13px] text-foreground-secondary">
+          <div className="flex flex-wrap items-baseline gap-x-3 gap-y-1 text-[13px] text-foreground/88">
             {teaserConf != null ? (
               <span>
                 Încredere indicativă{" "}
@@ -495,6 +499,10 @@ const PredictionCardInner = ({
             ) : null}
           </div>
         </div>
+      ) : null}
+
+      {!showPredictionLock && fixture.bucket !== "upcoming" ? (
+        <PredictionCardLiveMetrics fixture={fixture} />
       ) : null}
 
       {/* 3 · PREDICȚIE - strat inteligență; starea „publicare în curând” folosește același chip ca restul cardului */}
@@ -541,29 +549,79 @@ const PredictionCardInner = ({
             </div>
           </div>
         ) : fullPredictionReveal && !prediction?.picks?.length ? (
-          <div className="min-w-0 text-foreground-secondary">
+          <div className="min-w-0 text-foreground/88">
             {fixture.bucket === "upcoming" ? (
               <div className="flex w-full min-w-0 flex-col items-center justify-center gap-5 px-4 py-10 text-center sm:px-6 sm:py-12 md:px-8">
                 <Timer
                   className="size-6 shrink-0 text-primary/70"
                   aria-hidden
                 />
-                <p className="w-full max-w-none text-pretty text-sm leading-[1.65] text-foreground-secondary sm:text-[13px] sm:leading-relaxed">
+                <p className="w-full max-w-none text-pretty text-sm leading-[1.65] text-foreground/90 sm:text-[13px] sm:leading-relaxed">
                   {UPCOMING_AWAITING_MESSAGE}
                 </p>
               </div>
+            ) : fixture.bucket === "live" ? (
+              <div className="flex min-w-0 flex-col px-4 py-3.5 sm:px-5 sm:py-4">
+                <p className="text-[11px] font-medium uppercase tracking-wider text-foreground/70">
+                  Predicție
+                </p>
+                <ul className="mt-2.5 flex min-w-0 flex-col divide-y divide-border/35">
+                  {[0, 1, 2].map((i) => (
+                    <li
+                      key={i}
+                      className="flex items-center gap-3 py-2 first:pt-1"
+                      aria-hidden
+                    >
+                      <span className="flex size-[1.375rem] shrink-0 items-center justify-center rounded-md border border-dashed border-border/50 text-[10px] font-medium tabular-nums text-foreground-muted/55">
+                        …
+                      </span>
+                      <div className="h-[1.125rem] min-w-0 flex-1 rounded-md bg-foreground/[0.07]" />
+                    </li>
+                  ))}
+                </ul>
+                <div className="mt-4 border-t border-border/40 pt-2.5">
+                  <div className="flex flex-wrap items-start justify-between gap-x-6 gap-y-2 opacity-55">
+                    <div>
+                      <p className="text-[11px] font-medium uppercase tracking-wider text-foreground/65">
+                        Cotă
+                      </p>
+                      <p className="mt-1.5 font-medium tabular-nums text-[13px] text-foreground/75">
+                        —
+                      </p>
+                    </div>
+                    <div className="text-right">
+                      <p className="text-[11px] font-medium uppercase tracking-wider text-foreground/65">
+                        Încredere model
+                      </p>
+                      <p className="mt-1.5 font-medium tabular-nums text-[13px] text-foreground/75">
+                        —
+                      </p>
+                    </div>
+                  </div>
+                </div>
+                <div className="mt-3 flex gap-2.5 rounded-lg border border-border/35 bg-muted/10 px-3 py-2.5 text-[13px] leading-relaxed text-foreground/85">
+                  <Timer
+                    className="mt-0.5 size-4 shrink-0 text-primary/70"
+                    aria-hidden
+                  />
+                  <p className="min-w-0">
+                    Predicția Probix indisponibilă pentru acest meci.{" "}
+                    <span className="font-medium text-foreground/90">
+                      „Meci în cifre” de mai sus
+                    </span>{" "}
+                    rămâne actualizat; reîncearcă după rularea cron‑ului sau reîncarcă pagina.
+                  </p>
+                </div>
+              </div>
             ) : (
-              <div className="flex gap-2.5 p-3.5 text-[13px] leading-relaxed sm:p-4">
+              <div className="flex gap-2.5 p-3.5 text-[13px] leading-relaxed text-foreground/88 sm:p-4">
                 <CircleMinus
-                  className="mt-0.5 size-4 shrink-0 text-foreground-muted/45"
+                  className="mt-0.5 size-4 shrink-0 text-foreground/55"
                   aria-hidden
                 />
                 <p className="min-w-0">
-                  Scorul Probix apare cu până la{" "}
-                  <span className="font-medium text-foreground/90">
-                    10 minute înainte de start
-                  </span>
-                  . Reîncarcă după rularea job-ului.
+                  Nu există predicție Probix salvată pentru acest rezultat final și data
+                  afișată.
                 </p>
               </div>
             )}
@@ -571,7 +629,7 @@ const PredictionCardInner = ({
         ) : (
           showPredictionBody && (
             <div className="flex flex-col px-4 py-3.5 sm:px-5 sm:py-4">
-              <p className="text-[11px] font-medium uppercase tracking-wider text-foreground-muted/90">
+              <p className="text-[11px] font-medium uppercase tracking-wider text-foreground/70">
                 Predicție
               </p>
               <ul className="mt-2.5 flex min-w-0 flex-col divide-y divide-border/35">
@@ -642,19 +700,15 @@ const PredictionCardInner = ({
         <ComboProgressStrip rows={progressRows} />
       ) : null}
 
-      {!showPredictionLock && fixture.bucket !== "upcoming" ? (
-        <PredictionCardLiveMetrics fixture={fixture} />
-      ) : null}
-
       {!showPredictionLock &&
       !hideIntelForUpcomingAwaiting &&
-      prediction?.explanationBullets?.length ? (
+      analysisBulletsShown.length ? (
         <section className="rounded-xl border border-border/40 bg-muted/10 px-2.5 py-2 sm:px-3 sm:py-2.5">
-          <p className="text-[11px] font-medium uppercase tracking-wider text-foreground-muted/80">
+          <p className="text-[11px] font-medium uppercase tracking-wider text-foreground/70">
             Analiză
           </p>
-          <ul className="mt-1.5 space-y-1.5 text-[13px] leading-relaxed text-foreground-secondary [&>li]:max-w-prose [&>li]:text-pretty">
-            {prediction.explanationBullets.slice(0, 5).map((line, ix) => (
+          <ul className="mt-1.5 space-y-1.5 text-[13px] leading-relaxed text-foreground/88 [&>li]:max-w-prose [&>li]:text-pretty">
+            {analysisBulletsShown.map((line, ix) => (
               <li key={`${ix}-${line.slice(0, 48)}`}>{line}</li>
             ))}
           </ul>
@@ -674,7 +728,7 @@ const PredictionCardInner = ({
           </p>
         </div>
       ) : null}
-    </motion.article>
+    </article>
   );
 };
 

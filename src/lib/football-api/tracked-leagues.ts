@@ -9,7 +9,6 @@ export const TRACKED_LEAGUES = [
   { id: 135, displayName: "Serie A" },
   { id: 140, displayName: "La Liga" },
   { id: 283, displayName: "Superliga" },
-  { id: 284, displayName: "Liga 2 Casa Pariurilor" },
   { id: 285, displayName: "Cupa României" },
   { id: 555, displayName: "Supercupa Betano" },
   { id: 2, displayName: "UEFA Champions League" },

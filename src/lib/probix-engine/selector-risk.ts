@@ -10,6 +10,7 @@ import {
   PROBIX_ENGINE_VERSION,
   TARGET_PROB_PRODUCT,
 } from "@/lib/probix-engine/config";
+import { exclusiveMarketConflict } from "@/lib/probix-engine/market-exclusivity";
 import type {
   MarketCandidate,
   ProbixFeatures,
@@ -78,6 +79,7 @@ export function selectComboAndRisk(
 
   for (const c of pool) {
     if (chosen.length >= MAX_LEGS) break;
+    if (exclusiveMarketConflict(c.marketId, chosen)) continue;
     const pen = maxCorrPenaltyFor(c.marketId, chosen);
     maxPenUsed = Math.max(maxPenUsed, pen);
     const adj = c.confidence * (1 - pen);
@@ -90,6 +92,7 @@ export function selectComboAndRisk(
   if (chosen.length < MIN_LEGS) {
     for (const c of pool) {
       if (chosen.some((x) => x.marketId === c.marketId)) continue;
+      if (exclusiveMarketConflict(c.marketId, chosen)) continue;
       const pen = maxCorrPenaltyFor(c.marketId, chosen);
       const adj = c.confidence * (1 - pen * 0.88);
       if (adj < MIN_MARKET_CONFIDENCE_LEG3) continue;
@@ -113,6 +116,7 @@ export function selectComboAndRisk(
   if (pp < MIN_PROB_PRODUCT && picks.length < MAX_LEGS) {
     for (const c of pool) {
       if (picks.some((x) => x.marketId === c.marketId)) continue;
+      if (exclusiveMarketConflict(c.marketId, picks)) continue;
       const pen = maxCorrPenaltyFor(c.marketId, picks);
       const adj = c.confidence * (1 - pen);
       if (adj < MIN_MARKET_CONFIDENCE_LEG3) continue;
@@ -130,6 +134,7 @@ export function selectComboAndRisk(
   if (pp > TARGET_PROB_PRODUCT * 1.08 && picks.length < MAX_LEGS) {
     for (const c of pool) {
       if (picks.some((x) => x.marketId === c.marketId)) continue;
+      if (exclusiveMarketConflict(c.marketId, picks)) continue;
       const pen = maxCorrPenaltyFor(c.marketId, picks);
       const adj = c.confidence * (1 - pen * 0.95);
       if (adj < MIN_MARKET_CONFIDENCE_LEG3) continue;

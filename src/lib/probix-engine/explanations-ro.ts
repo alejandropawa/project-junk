@@ -4,17 +4,24 @@ import type {
   ProbixFeatures,
 } from "@/lib/probix-engine/types";
 
+const LEGACY_BOOKMAKER_DISCLAIMER_PREFIX =
+  "Analiza Probix combină statisticile sezoniere";
+
+/** Scoruri istorice salvate înainte să scoatem Disclaimer-ul generator. */
+export function withoutLegacyProbixBookmakerDisclaimer(
+  bullets: readonly string[],
+): string[] {
+  return bullets.filter(
+    (line) => !line.trimStart().startsWith(LEGACY_BOOKMAKER_DISCLAIMER_PREFIX),
+  );
+}
+
 export function generateExplanationBullets(
   ctx: ProbixEngineInput,
   f: ProbixFeatures,
   picks: MarketCandidate[],
 ): string[] {
   const bullets: string[] = [];
-  const nf = `${ctx.fixture.homeName} - ${ctx.fixture.awayName}`;
-
-  bullets.push(
-    `Analiza Probix combină statisticile sezoniere (${nf}) cu un filtru de piețe uzuale pe Superbet · Betano · Unibet; nu garantează rezultate.`,
-  );
 
   bullets.push(
     `Ritm ofensiv sintetizat (λ goluri estimate): ~${f.lambdaGoals.toFixed(2)} goluri marcate combinativ pe rundă echivalentă.`,

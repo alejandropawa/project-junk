@@ -87,6 +87,8 @@ type ApiFixtureRow = {
     home: number | null;
     away: number | null;
   };
+  /** Prezent în răspunsul `/fixtures` chiar dacă `/fixtures/statistics` e gol la unele ligii live. */
+  events?: readonly unknown[];
 };
 
 export function parseApiResponse(json: unknown): ApiFixtureResponse {

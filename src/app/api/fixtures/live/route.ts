@@ -1,10 +1,14 @@
-import { parseFixtureStatisticsBody } from "@/lib/football-api/fixture-live-stats";
+import {
+  deriveLiveStatsSplitFromEvents,
+  mergeLiveStatsSplits,
+} from "@/lib/football-api/fixture-events-live-stats";
+import { fetchFixtureLiveStatsSplit } from "@/lib/football-api/fixture-statistics-fetch";
 import {
   formatFootballApiErrors,
   hasRealFootballApiErrors,
 } from "@/lib/football-api/response-errors";
 import { normalizeFixtureRow } from "@/lib/football-api/normalize-fixture-row";
-import { parseApiResponse } from "@/lib/football-api/types";
+import { parseApiResponse, type ApiFixtureRow } from "@/lib/football-api/types";
 import { TRACKED_LEAGUE_IDS } from "@/lib/football-api/tracked-leagues";
 import { allowIpRequest, clientIpFromRequest } from "@/lib/rate-limit-ip";
 
@@ -18,24 +22,6 @@ const API_BASE =
   process.env.FOOTBALL_API_BASE_URL ?? "https://v3.football.api-sports.io";
 
 const MAX_IDS = 30;
-
-async function fetchStatisticsJson(
-  fixtureId: number,
-  headers: HeadersInit,
-): Promise<unknown | null> {
-  const url = new URL("/fixtures/statistics", API_BASE);
-  url.searchParams.set("fixture", String(fixtureId));
-  try {
-    const res = await fetch(url.toString(), {
-      headers,
-      cache: "no-store",
-    });
-    if (!res.ok) return null;
-    return (await res.json()) as unknown;
-  } catch {
-    return null;
-  }
-}
 
 /** Polling pentru meciuri live: `fixtures` actualizate + statistic pe `fixtures/statistics`. */
 export async function GET(req: Request) {
@@ -110,25 +96,26 @@ export async function GET(req: Request) {
   }
 
   const rows = parsed.response ?? [];
-  const fixturesBase = rows
-    .filter((row) => TRACKED_LEAGUE_IDS.has(row.league.id))
-    .map(normalizeFixtureRow);
+  const rowsFiltered = rows.filter((row) =>
+    TRACKED_LEAGUE_IDS.has(row.league.id),
+  );
 
   const enriched = await Promise.all(
-    fixturesBase.map(async (nf) => {
-      const statsJson = await fetchStatisticsJson(nf.id, headers);
-      if (!statsJson || typeof statsJson !== "object") return nf;
-
-      const statParsed = parseApiResponse(statsJson);
-      if (hasRealFootballApiErrors(statParsed.errors)) return nf;
-
-      const split = parseFixtureStatisticsBody(
-        statsJson,
+    rowsFiltered.map(async (row: ApiFixtureRow) => {
+      const nf = normalizeFixtureRow(row);
+      const splitFromApi = await fetchFixtureLiveStatsSplit(
+        nf.id,
+        nf.homeTeamId,
+        nf.awayTeamId,
+        headers,
+      );
+      const splitFromEv = deriveLiveStatsSplitFromEvents(
+        Array.isArray(row.events) ? [...row.events] : undefined,
         nf.homeTeamId,
         nf.awayTeamId,
       );
-
-      return split ? { ...nf, liveStatsSplit: split } : nf;
+      const merged = mergeLiveStatsSplits(splitFromApi, splitFromEv);
+      return merged ? { ...nf, liveStatsSplit: merged } : nf;
     }),
   );
 

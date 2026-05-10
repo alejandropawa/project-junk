@@ -75,7 +75,13 @@ export async function fetchPredictionsForDate(
   // Tabel inexistent / RLS / neautentificat → nimic în map (fără crash UI).
   if (error || !data) return out;
   for (const r of data as { fixture_id: number; payload: PredictionPayload }[]) {
-    out.set(Number(r.fixture_id), r.payload);
+    /** Bigint în Postgres poate ajunge uneori ca string în JSON API. */
+    const id =
+      typeof r.fixture_id === "string"
+        ? Number(r.fixture_id)
+        : Number(r.fixture_id);
+    if (!Number.isFinite(id)) continue;
+    out.set(id, r.payload);
   }
   return out;
 }

@@ -17,9 +17,9 @@ export const dynamic = "force-dynamic";
 const TEN_MIN_MS = 10 * 60 * 1000;
 
 /**
- * Cron (~5 minute) - fereastra [T‑10min, T): motor Probix deterministic
- * (statistici API‑Football) + persistare predicție unică înainte de fluierul de start.
- * Odds API e opțional: folosit doar ca referință cote dacă `ODDS_API_KEY` e setat.
+ * Cron (~5 minute) — generare automată în fereastra **[T−10 minute, T)** (10 minute înainte
+ * de start până la fluier). Motor Probix + persistare predicție unică în `prediction_reports`.
+ * Odds API e opțional (cote de referință dacă `ODDS_API_KEY` e setat).
  */
 export async function GET(req: Request) {
   const secret = process.env.CRON_SECRET;
