@@ -1,3 +1,4 @@
+import { predictionPickLineRo } from "@/lib/predictions/pick-result";
 import type { PredictionPick } from "@/lib/predictions/types";
 import type { FixtureBucket } from "@/lib/football-api/types";
 
@@ -35,7 +36,7 @@ function ceilHalfLine(line: number): number {
 }
 
 function labelForPick(pick: PredictionPick): string {
-  return pick.selection || pick.marketLabel;
+  return predictionPickLineRo(pick);
 }
 
 /** Heuristici deterministic pentru UX de urmărire (nu evaluare contabilă). */

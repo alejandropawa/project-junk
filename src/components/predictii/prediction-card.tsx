@@ -13,6 +13,7 @@ import {
   deriveComboVisualSettlement,
   evaluatePickResult,
   marketDisplayRo,
+  predictionPickLineRo,
 } from "@/lib/predictions/pick-result";
 import { deriveLiveProgressRows } from "@/lib/predictions/live-progress";
 import type { LiveProgressRow } from "@/lib/predictions/live-progress";
@@ -640,6 +641,7 @@ const PredictionCardInner = ({
                     derivedLiveTotals,
                   );
                   const ro = marketDisplayRo(p);
+                  const pickLine = predictionPickLineRo(p);
                   const mark =
                     res === "won"
                       ? "✓"
@@ -667,7 +669,7 @@ const PredictionCardInner = ({
                     <li
                       key={`${p.marketId ?? ro.market}-${i}`}
                       className="flex items-center gap-3 py-2 first:pt-1"
-                      aria-label={`${ro.selection}. ${statusAria}.`}
+                      aria-label={`${pickLine}. ${statusAria}.`}
                     >
                       <span
                         className={cn(
@@ -679,7 +681,7 @@ const PredictionCardInner = ({
                         {mark}
                       </span>
                       <p className="min-w-0 flex-1 text-[15px] font-medium leading-snug tracking-tight text-foreground">
-                        {ro.selection}
+                        {pickLine}
                       </p>
                     </li>
                   );

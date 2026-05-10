@@ -2,6 +2,7 @@
 
 import type { PredictionReportRow } from "@/lib/predictions/prediction-repository";
 import { combinedDecimalFromPicks } from "@/lib/predictions/combined-odds";
+import { predictionPickLineRo } from "@/lib/predictions/pick-result";
 import type { PredictionSettlement } from "@/lib/predictions/types";
 import { cn } from "@/lib/utils";
 
@@ -129,7 +130,7 @@ export function HistoricPredictionCard({ row }: { row: PredictionReportRow }) {
                 key={`${p.marketId ?? p.marketLabel}-${i}`}
                 className="py-2 first:pt-1 text-[15px] font-medium leading-snug tracking-tight text-foreground"
               >
-                {p.selection}
+                {predictionPickLineRo(p)}
                 {Number.isFinite(p.decimal) && p.decimal > 1 ? (
                   <span className="ml-2 tabular-nums text-sm font-normal text-foreground-muted">
                     @{p.decimal.toFixed(2)}

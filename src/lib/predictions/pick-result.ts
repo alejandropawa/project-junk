@@ -94,7 +94,19 @@ export function deriveComboVisualSettlement(
   return "lost";
 }
 
-/** Titlu și selecție afișate în română (deterministic după marketId). */
+/**
+ * Piață și selecție (română), după `marketId`.
+ * Pentru liste/UI preferă **`predictionPickLineRo`** ca text principal — evită „Da”/„Nu” fără context.
+ *
+ * Piațe suportate de motor și evaluare live/settlement:
+ * - `goals_o15`, `goals_o25`, `goals_u25` — prag total goluri
+ * - `btts_yes` — ambele echipe înscriu
+ * - `corners_o85`, `corners_o95` — cornere totale prag
+ * - `cards_o35` — galbene combinate prag
+ * - `dc_1x` — șansă dublă 1X (gazda nu pierde)
+ *
+ * Fallback: etichetele din payload (`marketLabel`, `selection`).
+ */
 export function marketDisplayRo(pick: PredictionPick): {
   market: string;
   selection: string;
@@ -108,22 +120,61 @@ export function marketDisplayRo(pick: PredictionPick): {
     case "goals_u25":
       return { market: "Total goluri", selection: "Sub 2,5 goluri" };
     case "btts_yes":
-      return { market: "Ambele echipe marchează", selection: "Da" };
+      return {
+        market: "Ambele echipe marchează",
+        selection: "Minim un gol marcat de fiecare formație",
+      };
     case "corners_o85":
-      return { market: "Total cornere", selection: "Peste 8,5" };
+      return {
+        market: "Cornere (total în meci)",
+        selection: "Peste 8,5 cornere",
+      };
     case "corners_o95":
-      return { market: "Total cornere", selection: "Peste 9,5" };
+      return {
+        market: "Cornere (total în meci)",
+        selection: "Peste 9,5 cornere",
+      };
     case "cards_o35":
       return {
         market: "Cartonașe galbene (combinat)",
-        selection: "Peste 3,5",
+        selection: "Peste 3,5 la ambele echipe cumulat",
       };
     case "dc_1x":
-      return { market: "Șansă dublă", selection: "1 sau X (gazdă sau egal)" };
+      return { market: "Șansă dublă", selection: "1 sau X — gazda nu pierde" };
     default:
       return {
         market: pick.marketLabel || "Piață",
         selection: pick.selection || "-",
       };
+  }
+}
+
+/**
+ * Linie unică pentru carduri/liste — mereu suficientă context (fără ambiguu „Da” singur).
+ */
+export function predictionPickLineRo(pick: PredictionPick): string {
+  const id = pick.marketId ?? "";
+  const ro = marketDisplayRo(pick);
+
+  switch (id) {
+    case "goals_o15":
+    case "goals_o25":
+    case "goals_u25":
+      return ro.selection;
+    case "btts_yes":
+      return "Ambele echipe marchează (minim un gol marcat de fiecare)";
+    case "corners_o85":
+    case "corners_o95":
+    case "cards_o35":
+      return ro.selection;
+    case "dc_1x":
+      return ro.selection;
+    default: {
+      const market = pick.marketLabel || ro.market;
+      const sel = (pick.selection || ro.selection).trim();
+      if (!sel || sel === "-") return market;
+      if (market && market !== sel) return `${market}: ${sel}`;
+      return sel;
+    }
   }
 }
