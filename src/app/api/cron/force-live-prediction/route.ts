@@ -201,7 +201,7 @@ async function handle(
       payload = enrichPayloadWithOddsSnapshot(payload, oddsBody, bookmakers);
     }
 
-    const okRow = await upsertPrediction(sb, {
+    const up = await upsertPrediction(sb, {
       fixture_id: f.id,
       date_ro: data.date,
       home_name: f.homeName,
@@ -210,8 +210,8 @@ async function handle(
       kickoff_iso: f.kickoffIso,
       payload,
     });
-    if (okRow) processed += 1;
-    else notices.push(`Supabase upsert eșuat ${f.id}`);
+    if (up.ok) processed += 1;
+    else notices.push(`Supabase upsert ${f.id}: ${up.error}`);
   }
 
   revalidatePath("/predictii");

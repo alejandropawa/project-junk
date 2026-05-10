@@ -35,6 +35,10 @@ export async function predictionExists(
   return (count ?? 0) > 0;
 }
 
+export type UpsertPredictionResult =
+  | { ok: true }
+  | { ok: false; error: string };
+
 export async function upsertPrediction(
   sb: SupabaseClient,
   row: {
@@ -46,7 +50,7 @@ export async function upsertPrediction(
     kickoff_iso: string;
     payload: PredictionPayload;
   },
-): Promise<boolean> {
+): Promise<UpsertPredictionResult> {
   const { error } = await sb.from(TABLE).upsert(
     {
       fixture_id: row.fixture_id,
@@ -59,7 +63,9 @@ export async function upsertPrediction(
     },
     { onConflict: "fixture_id,date_ro" },
   );
-  return !error;
+  if (error)
+    return { ok: false, error: `${error.code ?? "?"} ${error.message}`.trim() };
+  return { ok: true };
 }
 
 export async function fetchPredictionsForDate(

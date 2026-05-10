@@ -87,7 +87,7 @@ export async function GET(request: Request) {
     const nextPayload = mergedPayloadWithSettlement(nf, row.payload);
     if (!nextPayload) continue;
 
-    const ok = await upsertPrediction(sb, {
+    const up = await upsertPrediction(sb, {
       fixture_id: row.fixture_id,
       date_ro: row.date_ro,
       home_name: row.home_name,
@@ -96,8 +96,8 @@ export async function GET(request: Request) {
       kickoff_iso: row.kickoff_iso,
       payload: nextPayload,
     });
-    if (ok) processed += 1;
-    else notices.push(`upsert eșuat ${row.fixture_id}`);
+    if (up.ok) processed += 1;
+    else notices.push(`upsert eșuat ${row.fixture_id}: ${up.error}`);
   }
 
   revalidatePath("/istoric");

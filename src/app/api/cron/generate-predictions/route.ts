@@ -4,7 +4,7 @@ import { fetchEventOdds, fetchOddsEventsWindow } from "@/lib/predictions/odds-ap
 import { engineOutputToPredictionPayload } from "@/lib/predictions/map-engine-output";
 import { matchOddsEventToFixture } from "@/lib/predictions/match-event";
 import {
-  predictionExists,
+  fetchPredictionsForDate,
   upsertPrediction,
 } from "@/lib/predictions/prediction-repository";
 import { runProbixEngine } from "@/lib/probix-engine/run-engine";
@@ -13,11 +13,14 @@ import { createServiceRoleClient } from "@/lib/supabase/admin";
 
 export const dynamic = "force-dynamic";
 
+/** Vercel / Next: permite cron suficient pentru multe fixture-uri + motor (plan Pro: până la 300). */
+export const maxDuration = 300;
+
 const TEN_MIN_MS = 10 * 60 * 1000;
 
-const ENGINE_ATTEMPTS = 6;
-const UPSERT_ATTEMPTS = 4;
-const RETRY_DELAY_MS = 2_000;
+const ENGINE_ATTEMPTS = 4;
+const UPSERT_ATTEMPTS = 3;
+const RETRY_DELAY_MS = 1_250;
 
 function sleep(ms: number): Promise<void> {
   return new Promise((resolve) => setTimeout(resolve, ms));
@@ -71,15 +74,26 @@ export async function GET(req: Request) {
   const notices: string[] = [];
   let processed = 0;
 
-  for (const f of data.fixtures) {
-    if (f.bucket !== "upcoming" && f.bucket !== "live") continue;
+  const existingByFixtureId = await fetchPredictionsForDate(sb, data.date);
 
+  const candidates = data.fixtures.filter((f) => {
+    if (f.bucket !== "upcoming" && f.bucket !== "live") return false;
     const kickMs = f.timestamp * 1000;
-    const eligibleFromTenMinBefore = now >= kickMs - TEN_MIN_MS;
-    if (!eligibleFromTenMinBefore) continue;
+    if (now < kickMs - TEN_MIN_MS) return false;
+    if (existingByFixtureId.has(f.id)) return false;
+    return true;
+  });
 
-    if (await predictionExists(sb, f.id, data.date)) continue;
+  /** Cron timeout: întâi toate lipsurile LIVE, apoi Urmează după ora start. */
+  candidates.sort((a, b) => {
+    const la = a.bucket === "live" ? 0 : 1;
+    const lb = b.bucket === "live" ? 0 : 1;
+    if (la !== lb) return la - lb;
+    return a.timestamp - b.timestamp;
+  });
 
+  for (const f of candidates) {
+    const kickMs = f.timestamp * 1000;
     let engineOut: Awaited<ReturnType<typeof runProbixEngine>> | null = null;
     for (let attempt = 0; attempt < ENGINE_ATTEMPTS; attempt++) {
       engineOut = await runProbixEngine(f);
@@ -122,8 +136,9 @@ export async function GET(req: Request) {
     }
 
     let saved = false;
+    let lastUpsertError = "";
     for (let attempt = 0; attempt < UPSERT_ATTEMPTS; attempt++) {
-      const okRow = await upsertPrediction(sb, {
+      const up = await upsertPrediction(sb, {
         fixture_id: f.id,
         date_ro: data.date,
         home_name: f.homeName,
@@ -132,16 +147,18 @@ export async function GET(req: Request) {
         kickoff_iso: f.kickoffIso,
         payload,
       });
-      if (okRow) {
+      if (up.ok) {
         processed += 1;
         saved = true;
+        existingByFixtureId.set(f.id, payload);
         break;
       }
+      lastUpsertError = up.error;
       if (attempt < UPSERT_ATTEMPTS - 1) await sleep(RETRY_DELAY_MS);
     }
     if (!saved) {
       notices.push(
-        `Supabase upsert eșuat după ${UPSERT_ATTEMPTS} încercări (${f.id})`,
+        `Supabase upsert (${f.id}) după ${UPSERT_ATTEMPTS} încercări: ${lastUpsertError || "necunoscut"}`,
       );
     }
   }
@@ -155,6 +172,12 @@ export async function GET(req: Request) {
     date: data.date,
     processed,
     notices,
+    stats: {
+      candidateCount: candidates.length,
+      /** Lipsă predicție + live (procesate primele). */
+      liveMissingCount: candidates.filter((c) => c.bucket === "live")
+        .length,
+    },
     engine: "probix-deterministic-stats",
     at: new Date().toISOString(),
   });
