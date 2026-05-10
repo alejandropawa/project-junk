@@ -7,7 +7,6 @@ import {
   predictionExists,
   upsertPrediction,
 } from "@/lib/predictions/prediction-repository";
-import { PROBIX_ENGINE_LEAGUE_IDS } from "@/lib/probix-engine/config";
 import { runProbixEngine } from "@/lib/probix-engine/run-engine";
 import { fetchTodayTrackedFixturesFresh } from "@/lib/football-api/fetch-today";
 import { createServiceRoleClient } from "@/lib/supabase/admin";
@@ -78,11 +77,6 @@ export async function GET(req: Request) {
     const kickMs = f.timestamp * 1000;
     const eligibleFromTenMinBefore = now >= kickMs - TEN_MIN_MS;
     if (!eligibleFromTenMinBefore) continue;
-
-    if (!PROBIX_ENGINE_LEAGUE_IDS.has(f.leagueId)) {
-      notices.push(`skip engine league ${f.leagueId}`);
-      continue;
-    }
 
     if (await predictionExists(sb, f.id, data.date)) continue;
 

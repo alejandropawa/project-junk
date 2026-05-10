@@ -3,19 +3,14 @@ import { enrichPayloadWithOddsSnapshot } from "@/lib/predictions/odds-enrich";
 import { fetchEventOdds, fetchOddsEventsWindow } from "@/lib/predictions/odds-api";
 import { engineOutputToPredictionPayload } from "@/lib/predictions/map-engine-output";
 import { matchOddsEventToFixture } from "@/lib/predictions/match-event";
-import { upsertPrediction } from "@/lib/predictions/prediction-repository";
-import { PROBIX_ENGINE_LEAGUE_IDS } from "@/lib/probix-engine/config";
+import {
+  predictionExists,
+  upsertPrediction,
+} from "@/lib/predictions/prediction-repository";
 import { runProbixEngine } from "@/lib/probix-engine/run-engine";
 import { fetchTodayTrackedFixturesFresh } from "@/lib/football-api/fetch-today";
 import { TRACKED_LEAGUE_IDS } from "@/lib/football-api/tracked-leagues";
 import { createServiceRoleClient } from "@/lib/supabase/admin";
-
-/** Ligă eligibilă pentru forțare live: în dev = orice ligă urmărită; în prod = doar motorul Probix. */
-function forceLiveLeagueIds(): Set<number> {
-  return process.env.NODE_ENV === "development"
-    ? TRACKED_LEAGUE_IDS
-    : PROBIX_ENGINE_LEAGUE_IDS;
-}
 
 export const dynamic = "force-dynamic";
 
@@ -78,7 +73,7 @@ async function tryEnrichOdds(
  *   "http://localhost:3000/api/cron/force-live-prediction?fixture_id=1234567"
  *
  * Body JSON opțional (POST): `{ "fixture_id": 1234567 }` sau `fixtureId`.
- * Fără ID: procesează toate meciurile live urmărite (în dev: orice ligă tracked; în prod: ligă în motor).
+ * Fără ID: meciuri live din ligi urmărite în app care încă nu au rând în `prediction_reports`.
  */
 export async function GET(req: Request) {
   return handle(req, null);
@@ -141,9 +136,8 @@ async function handle(
     );
   }
 
-  const leagueOk = forceLiveLeagueIds();
   let targets = data.fixtures.filter(
-    (f) => f.bucket === "live" && leagueOk.has(f.leagueId),
+    (f) => f.bucket === "live" && TRACKED_LEAGUE_IDS.has(f.leagueId),
   );
 
   if (filterId != null) {
@@ -168,14 +162,11 @@ async function handle(
           { status: 400 },
         );
       }
-      if (!leagueOk.has(any.leagueId)) {
+      if (!TRACKED_LEAGUE_IDS.has(any.leagueId)) {
         return Response.json(
           {
             ok: false,
-            message:
-              process.env.NODE_ENV === "development"
-                ? `Liga ${any.leagueId} nu e în lista de ligi urmărite în app.`
-                : `Liga ${any.leagueId} nu e în setul motorului Probix (prod).`,
+            message: `Liga ${any.leagueId} nu e în lista de ligi urmărite în app.`,
           },
           { status: 400 },
         );
@@ -188,6 +179,8 @@ async function handle(
   let processed = 0;
 
   for (const f of targets) {
+    if (await predictionExists(sb, f.id, data.date)) continue;
+
     const kickMs = f.timestamp * 1000;
     const engineOut = await runProbixEngine(f);
     if (!engineOut) {

@@ -62,6 +62,7 @@ function riskFrom(
 export function selectComboAndRisk(
   candidates: MarketCandidate[],
   f: ProbixFeatures,
+  opts?: { mode?: "default" | "liveRelaxed" },
 ): {
   picks: MarketCandidate[];
   riskRating: RiskRating;
@@ -70,8 +71,17 @@ export function selectComboAndRisk(
   confidenceAvg: number;
   engineVersion: string;
 } {
+  const relaxed = opts?.mode === "liveRelaxed";
+  const minC0 = relaxed
+    ? Math.min(MIN_MARKET_CONFIDENCE, 0.48)
+    : MIN_MARKET_CONFIDENCE;
+  const minCleg3 = relaxed
+    ? Math.min(MIN_MARKET_CONFIDENCE_LEG3, 0.44)
+    : MIN_MARKET_CONFIDENCE_LEG3;
+  const minProdFloor = relaxed ? MIN_PROB_PRODUCT * 0.82 : MIN_PROB_PRODUCT;
+
   const pool = [...candidates]
-    .filter((c) => c.confidence >= MIN_MARKET_CONFIDENCE)
+    .filter((c) => c.confidence >= minC0)
     .sort((a, b) => b.confidence - a.confidence);
 
   const chosen: MarketCandidate[] = [];
@@ -83,8 +93,7 @@ export function selectComboAndRisk(
     const pen = maxCorrPenaltyFor(c.marketId, chosen);
     maxPenUsed = Math.max(maxPenUsed, pen);
     const adj = c.confidence * (1 - pen);
-    const minC =
-      chosen.length >= 2 ? MIN_MARKET_CONFIDENCE_LEG3 : MIN_MARKET_CONFIDENCE;
+    const minC = chosen.length >= 2 ? minCleg3 : minC0;
     if (adj < minC) continue;
     chosen.push(c);
   }
@@ -95,7 +104,7 @@ export function selectComboAndRisk(
       if (exclusiveMarketConflict(c.marketId, chosen)) continue;
       const pen = maxCorrPenaltyFor(c.marketId, chosen);
       const adj = c.confidence * (1 - pen * 0.88);
-      if (adj < MIN_MARKET_CONFIDENCE_LEG3) continue;
+      if (adj < minCleg3) continue;
       chosen.push(c);
       maxPenUsed = Math.max(maxPenUsed, pen);
       if (chosen.length >= MIN_LEGS) break;
@@ -113,16 +122,16 @@ export function selectComboAndRisk(
     }
   }
 
-  if (pp < MIN_PROB_PRODUCT && picks.length < MAX_LEGS) {
+  if (pp < minProdFloor && picks.length < MAX_LEGS) {
     for (const c of pool) {
       if (picks.some((x) => x.marketId === c.marketId)) continue;
       if (exclusiveMarketConflict(c.marketId, picks)) continue;
       const pen = maxCorrPenaltyFor(c.marketId, picks);
       const adj = c.confidence * (1 - pen);
-      if (adj < MIN_MARKET_CONFIDENCE_LEG3) continue;
+      if (adj < minCleg3) continue;
       const trial = [...picks, c];
       const tpp = probProduct(trial);
-      if (tpp >= MIN_PROB_PRODUCT && tpp <= MAX_PROB_PRODUCT) {
+      if (tpp >= minProdFloor && tpp <= MAX_PROB_PRODUCT) {
         picks = trial;
         pp = tpp;
         maxPenUsed = Math.max(maxPenUsed, pen);
@@ -137,10 +146,10 @@ export function selectComboAndRisk(
       if (exclusiveMarketConflict(c.marketId, picks)) continue;
       const pen = maxCorrPenaltyFor(c.marketId, picks);
       const adj = c.confidence * (1 - pen * 0.95);
-      if (adj < MIN_MARKET_CONFIDENCE_LEG3) continue;
+      if (adj < minCleg3) continue;
       const trial = [...picks, c];
       const tpp = probProduct(trial);
-      if (tpp <= MAX_PROB_PRODUCT && tpp >= MIN_PROB_PRODUCT * 0.9) {
+      if (tpp <= MAX_PROB_PRODUCT && tpp >= minProdFloor * 0.9) {
         picks = trial;
         pp = tpp;
         break;

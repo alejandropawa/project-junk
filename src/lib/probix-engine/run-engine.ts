@@ -10,11 +10,9 @@ import type { ProbixEngineOutput } from "@/lib/probix-engine/types";
 import type { NormalizedFixture } from "@/lib/football-api/types";
 
 function engineAllowsLeague(leagueId: number): boolean {
-  if (PROBIX_ENGINE_LEAGUE_IDS.has(leagueId)) return true;
-  /** În prod doar ligile calibre motor; în dev permitem orice ligă urmărită în app. */
+  /** Orice ligă afișată în app (TRACKED); subset PROBIX = calibrare prioritară, nu unică sursă. */
   return (
-    process.env.NODE_ENV === "development" &&
-    TRACKED_LEAGUE_IDS.has(leagueId)
+    PROBIX_ENGINE_LEAGUE_IDS.has(leagueId) || TRACKED_LEAGUE_IDS.has(leagueId)
   );
 }
 
@@ -28,8 +26,13 @@ export async function runProbixEngine(
 
   const f = buildProbixFeatures(ctx);
   const all = generateMarketCandidates(ctx, f);
-  const selected = selectComboAndRisk(all, f);
-  const picks = dedupeExclusiveMarketOrder(selected.picks);
+  let selected = selectComboAndRisk(all, f);
+  let picks = dedupeExclusiveMarketOrder(selected.picks);
+
+  if (picks.length < 2 && fixture.bucket === "live") {
+    selected = selectComboAndRisk(all, f, { mode: "liveRelaxed" });
+    picks = dedupeExclusiveMarketOrder(selected.picks);
+  }
 
   if (picks.length < 2) return null;
 
