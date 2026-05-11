@@ -38,9 +38,20 @@ const LIVE_STATUS_PULSE = "animate-pulse motion-reduce:animate-none";
 /** Ritm vertical între zonele cardului (~8–10px). */
 const SECTION_GAP = "gap-2.5";
 
-/** Interior „Progres combinație” din hero (`landing-hero-dashboard`). */
+/**
+ * Chenar secțiune Predicție + Progres selecții (pre-live / live / final).
+ * Fundal puțin mai închis decât restul cardului pentru separare vizuală.
+ */
 const HERO_PREDICTION_INNER =
-  "rounded-xl border border-border/50 bg-background-secondary/40 p-4";
+  "rounded-xl border border-border/55 bg-muted/22 p-4 dark:bg-muted/28";
+
+/** Înveliș gradient când predicția e blocată (auth) — același ton, ușor mai închis. */
+const PREDICTION_LOCKED_GRADIENT =
+  "rounded-2xl border border-white/[0.09] bg-gradient-to-br from-muted/[0.38] via-background/48 to-muted/[0.26] shadow-[inset_0_1px_0_rgba(255,255,255,0.05),0_12px_36px_-20px_rgba(0,0,0,0.55)]";
+
+/** Chenar discret: așteptăm predicție / guest upcoming cu teaser. */
+const PREDICTION_AWAITING_SHELL =
+  "rounded-xl border border-border/50 bg-muted/20 dark:bg-muted/26";
 
 /** Aliniere ca `FixtureRow` (Meciuri): minut centru, LIVE dreapta, deasupra rândului scor. */
 const MATCH_STATUS_ROW =
@@ -402,15 +413,6 @@ const PredictionCardInner = ({
     );
   }, [fixture, prediction, derivedLiveTotals]);
 
-  const progressRows = useMemo(() => {
-    if (!prediction?.picks?.length || fixture.bucket === "upcoming") return [];
-    return deriveLiveProgressRows(
-      fixture,
-      prediction.picks,
-      derivedLiveTotals,
-    );
-  }, [fixture, prediction, derivedLiveTotals]);
-
   /** Predicții complete: utilizator în cont SAU meci final (combinatie publică rezultat). */
   const fullPredictionReveal =
     unlocked || fixture.bucket === "finished";
@@ -424,9 +426,33 @@ const PredictionCardInner = ({
 
   const showPredictionLock = !fullPredictionReveal;
   const hasTeaserOutline = Boolean(teaser) && showPredictionLock;
+  /**
+   * Vizitator + urmează + există predicție (teaser / picioare): același layout ca „fără predicție încă”
+   * — fără cote indicative, fără blur autentificare în chenarul principal.
+   */
+  const guestUpcomingHasPredTeaser =
+    fixture.bucket === "upcoming" &&
+    showPredictionLock &&
+    (Boolean(teaser) || Boolean(prediction?.picks?.length));
   /** Vizitator neautentificat la meci live: fără teaser cote / fără chenar „autentificare necesară”. */
   const lockedLiveGuest =
     showPredictionLock && fixture.bucket === "live";
+
+  const progressRowsForStrip = useMemo(() => {
+    if (!prediction?.picks?.length) return [];
+    return deriveLiveProgressRows(
+      fixture,
+      prediction.picks,
+      derivedLiveTotals,
+    );
+  }, [fixture, prediction, derivedLiveTotals]);
+
+  /** Aceeași bandă status + scor ca la live; la „Urmează” (user cu predicție) centrul = ora de start. */
+  const showMatchStatusBand =
+    fixture.bucket === "live" ||
+    (fixture.bucket === "upcoming" &&
+      !showPredictionLock &&
+      Boolean(prediction?.picks?.length));
 
   const metaTime =
     fullPredictionReveal && prediction?.generatedAt ? (
@@ -507,7 +533,7 @@ const PredictionCardInner = ({
       {/* 2 · MATCH CENTER - live: minut + LIVE deasupra scorului (ca Meciuri); separator după echipe */}
       <section className="min-w-0" aria-label="Meci">
         <div className="mx-auto w-full max-w-lg py-2 sm:py-2.5">
-          {fixture.bucket === "live" ? (
+          {showMatchStatusBand ? (
             <div className="flex flex-col gap-y-2">
               <div className={MATCH_STATUS_ROW}>
                 <div aria-hidden className={cn(MATCH_SIDE, "min-h-7")} />
@@ -517,7 +543,7 @@ const PredictionCardInner = ({
                     "flex min-h-7 flex-col items-center justify-center",
                   )}
                 >
-                  {liveClockLabel ? (
+                  {fixture.bucket === "live" && liveClockLabel ? (
                     <span
                       className={cn(
                         "block text-center text-xs font-medium text-destructive",
@@ -528,6 +554,10 @@ const PredictionCardInner = ({
                       )}
                     >
                       {liveClockLabel}
+                    </span>
+                  ) : fixture.bucket === "upcoming" ? (
+                    <span className="block text-center text-xs font-medium tabular-nums tracking-tight text-foreground-muted">
+                      {formatClock(fixture.kickoffIso)}
                     </span>
                   ) : null}
                 </div>
@@ -575,7 +605,10 @@ const PredictionCardInner = ({
 
       <div className="h-px w-full bg-border/35" aria-hidden />
 
-      {showPredictionLock && hasTeaserOutline && !lockedLiveGuest ? (
+      {showPredictionLock &&
+      hasTeaserOutline &&
+      !lockedLiveGuest &&
+      !guestUpcomingHasPredTeaser ? (
         <div className="rounded-xl border border-border/45 bg-muted/15 px-3 py-2 sm:px-3.5">
           <div className="flex flex-wrap items-baseline gap-x-3 gap-y-1 text-[13px] text-foreground/88">
             {teaserConf != null ? (
@@ -598,7 +631,7 @@ const PredictionCardInner = ({
         </div>
       ) : null}
 
-      {!showPredictionLock && fixture.bucket !== "upcoming" ? (
+      {!showPredictionLock ? (
         <PredictionCardLiveMetrics fixture={fixture} />
       ) : null}
 
@@ -607,9 +640,7 @@ const PredictionCardInner = ({
         <section
           className={cn(
             "relative isolate min-w-0 overflow-hidden",
-            "rounded-2xl border border-white/[0.09]",
-            "bg-gradient-to-br from-muted/[0.28] via-background/55 to-muted/[0.14]",
-            "shadow-[inset_0_1px_0_rgba(255,255,255,0.05),0_12px_36px_-20px_rgba(0,0,0,0.55)]",
+            PREDICTION_LOCKED_GRADIENT,
           )}
         >
           <div className="mx-auto flex max-w-[22rem] flex-col items-center gap-3 px-4 py-6 text-center sm:px-5 sm:py-7 md:py-8">
@@ -632,16 +663,22 @@ const PredictionCardInner = ({
             "relative isolate min-w-0 overflow-hidden",
             showPredictionBody
               ? HERO_PREDICTION_INNER
-              : upcomingAwaitingIntel
-                ? "rounded-xl border border-border/40 bg-muted/10"
-                : [
-                    "rounded-2xl border border-white/[0.09]",
-                    "bg-gradient-to-br from-muted/[0.28] via-background/55 to-muted/[0.14]",
-                    "shadow-[inset_0_1px_0_rgba(255,255,255,0.05),0_12px_36px_-20px_rgba(0,0,0,0.55)]",
-                  ],
+              : upcomingAwaitingIntel || guestUpcomingHasPredTeaser
+                ? PREDICTION_AWAITING_SHELL
+                : PREDICTION_LOCKED_GRADIENT,
           )}
         >
-        {showPredictionLock ? (
+        {showPredictionLock && guestUpcomingHasPredTeaser ? (
+          <div className="flex w-full min-w-0 flex-col items-center justify-center gap-5 px-4 py-10 text-center sm:px-6 sm:py-12 md:px-8">
+            <Timer
+              className="size-6 shrink-0 text-primary/70"
+              aria-hidden
+            />
+            <p className="w-full max-w-none text-pretty text-sm leading-[1.65] text-foreground/90 sm:text-[13px] sm:leading-relaxed">
+              {UPCOMING_AWAITING_MESSAGE}
+            </p>
+          </div>
+        ) : showPredictionLock ? (
           <div className="relative overflow-hidden px-4 py-6 sm:px-5 sm:py-7 md:py-8">
             <div className="pointer-events-none select-none blur-xl" aria-hidden>
               <div className="space-y-1.5 p-3">
@@ -788,11 +825,14 @@ const PredictionCardInner = ({
       </section>
       )}
 
-      {!showPredictionLock && progressRows.length > 0 ? (
-        <ComboProgressStrip rows={progressRows} />
+      {!showPredictionLock && progressRowsForStrip.length > 0 ? (
+        <ComboProgressStrip rows={progressRowsForStrip} />
       ) : null}
 
-      {showPredictionLock && teaser && !lockedLiveGuest ? (
+      {showPredictionLock &&
+      teaser &&
+      !lockedLiveGuest &&
+      !guestUpcomingHasPredTeaser ? (
         <div className="relative overflow-hidden rounded-xl border border-border/40 px-2.5 py-2">
           <div className="blur-md select-none" aria-hidden>
             <p className="text-[13px] leading-relaxed text-foreground-secondary">

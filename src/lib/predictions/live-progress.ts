@@ -177,7 +177,7 @@ export function deriveLiveProgressRows(
   picks: PredictionPick[] | undefined,
   opts?: LiveProgressOpts,
 ): LiveProgressRow[] {
-  if (!picks?.length || fixture.bucket === "upcoming") return [];
+  if (!picks?.length) return [];
 
   const G = goalsTotal(fixture);
   const hk = fixture.homeGoals;
@@ -385,6 +385,11 @@ export function deriveLiveProgressRows(
           status: "pending",
         });
     }
+  }
+
+  /** Pre-live: fără text auxiliar sub etichetă (la live datele sunt adesea 0, nu null — nu apare „nesincronizate”). */
+  if (fixture.bucket === "upcoming") {
+    return rows.map((r) => ({ ...r, detail: "" }));
   }
 
   return rows;

@@ -73,10 +73,13 @@ function formatCell(n: number, kind: "count" | "possession"): string {
   return `${Math.round(n)}`;
 }
 
-/** `null` dacă ambele sunt 0 — afișăm doar pista neutră, fără segmente false 50/50. */
-function leftSharePct(home: number, away: number): number | null {
+/**
+ * Partea stângă a barei (0–100). La total 0 (ambele 0 sau lipsă → 0) folosim 50%
+ * ca neutru vizual — bara rămâne mereu plină (inclusiv la trecerea pre-live → live).
+ */
+function leftSharePct(home: number, away: number): number {
   const t = home + away;
-  if (t <= 0) return null;
+  if (t <= 0) return 50;
   return Math.min(100, Math.max(0, (home / t) * 100));
 }
 
@@ -90,17 +93,6 @@ function DualTeamBar({
   reduceMotion: boolean | null;
 }) {
   const leftPct = leftSharePct(home, away);
-
-  /**
-   * Ambele 0: pista neutră (fără segmente colorate / fără împărțire falsă 50–50).
-   * Rămâne vizibilă ca în celelalte rânduri din „Meci în cifre”.
-   */
-  if (leftPct == null) {
-    return (
-      <div className={`mt-1.5 ${BAR_TRACK}`} role="presentation" aria-hidden />
-    );
-  }
-
   const rightPct = 100 - leftPct;
 
   return (
@@ -165,8 +157,6 @@ export function PredictionCardLiveMetrics({
   fixture: NormalizedFixture;
 }) {
   const reduceMotion = useReducedMotion();
-  if (fixture.bucket === "upcoming") return null;
-
   const rows = buildRows(fixture.liveStatsSplit ?? null);
 
   return (
