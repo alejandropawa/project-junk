@@ -39,19 +39,19 @@ const LIVE_STATUS_PULSE = "animate-pulse motion-reduce:animate-none";
 const SECTION_GAP = "gap-2.5";
 
 /**
- * Chenar secțiune Predicție + Progres selecții (pre-live / live / final).
- * Fundal puțin mai închis decât restul cardului pentru separare vizuală.
+ * Chenar Predicție (selecții + cotă/încredere) și „Progres selecții”.
+ * Mai închis decât `pb-prediction-card-shell` ca să evidențieze conținutul principal.
  */
 const HERO_PREDICTION_INNER =
-  "rounded-xl border border-border/55 bg-muted/22 p-4 dark:bg-muted/28";
+  "rounded-xl border border-white/[0.06] bg-black/[0.2] p-4 shadow-[inset_0_1px_0_rgba(255,255,255,0.04)] dark:bg-black/[0.25]";
 
-/** Înveliș gradient când predicția e blocată (auth) — același ton, ușor mai închis. */
+/** Înveliș gradient când predicția e blocată (auth). */
 const PREDICTION_LOCKED_GRADIENT =
-  "rounded-2xl border border-white/[0.09] bg-gradient-to-br from-muted/[0.38] via-background/48 to-muted/[0.26] shadow-[inset_0_1px_0_rgba(255,255,255,0.05),0_12px_36px_-20px_rgba(0,0,0,0.55)]";
+  "rounded-2xl border border-white/[0.06] bg-gradient-to-br from-black/[0.2] via-zinc-950/28 to-black/[0.19] shadow-[inset_0_1px_0_rgba(255,255,255,0.05),0_12px_36px_-20px_rgba(0,0,0,0.55)]";
 
 /** Chenar discret: așteptăm predicție / guest upcoming cu teaser. */
 const PREDICTION_AWAITING_SHELL =
-  "rounded-xl border border-border/50 bg-muted/20 dark:bg-muted/26";
+  "rounded-xl border border-white/[0.05] bg-black/[0.14] dark:bg-black/[0.17]";
 
 /** Aliniere ca `FixtureRow` (Meciuri): minut centru, LIVE dreapta, deasupra rândului scor. */
 const MATCH_STATUS_ROW =
@@ -252,7 +252,7 @@ function CotaIncredereRow({
   );
 }
 
-/** Procent umplere bară: mereu vizibil (min. subțire), 100% la îndeplinire, animabil la update-uri. */
+/** Procent umplere bară: 100% la îndeplinire; min. subțire când e progres dar nu 0 la țintă. */
 const PROGRESS_BAR_MIN_PCT = 5;
 
 function progressBarFillPercent(row: LiveProgressRow): number {
@@ -266,6 +266,13 @@ function progressBarFillPercent(row: LiveProgressRow): number {
   }
   if (row.status === "awaiting_data" || row.ratio == null) {
     return PROGRESS_BAR_MIN_PCT + 3;
+  }
+  /**
+   * Peste linie (goluri, cornere, etc.): la 0 față de țintă (ex. 0/3) — pistă goală,
+   * nu bară „minimă” care sugerează progres inexistent.
+   */
+  if (row.status === "pending" && row.ratio === 0) {
+    return 0;
   }
   const r = Math.round(Math.min(1, Math.max(0, row.ratio)) * 100);
   return Math.max(PROGRESS_BAR_MIN_PCT, Math.min(99, r));
@@ -437,6 +444,14 @@ const PredictionCardInner = ({
   /** Vizitator neautentificat la meci live: fără teaser cote / fără chenar „autentificare necesară”. */
   const lockedLiveGuest =
     showPredictionLock && fixture.bucket === "live";
+
+  /**
+   * „Meci în cifre”: ascuns la meci neînceput fără predicție (altfel doar zerouri / fără sens).
+   * Cu predicție (pre-live) sau live/final — afișăm ca înainte.
+   */
+  const showMeciInCifre =
+    !showPredictionLock &&
+    (fixture.bucket !== "upcoming" || Boolean(prediction?.picks?.length));
 
   const progressRowsForStrip = useMemo(() => {
     if (!prediction?.picks?.length) return [];
@@ -631,7 +646,7 @@ const PredictionCardInner = ({
         </div>
       ) : null}
 
-      {!showPredictionLock ? (
+      {showMeciInCifre ? (
         <PredictionCardLiveMetrics fixture={fixture} />
       ) : null}
 

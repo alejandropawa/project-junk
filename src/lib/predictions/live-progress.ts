@@ -301,7 +301,7 @@ export function deriveLiveProgressRows(
           rows.push({
             id,
             label: baseLabel,
-            detail: `${hk}–${ak} · aștept final (1X — gazda nu pierde)`,
+            detail: "",
             ratio: 0.5,
             status: "pending",
           });
@@ -330,7 +330,7 @@ export function deriveLiveProgressRows(
           rows.push({
             id,
             label: baseLabel,
-            detail: `${hk}–${ak} · aștept final (X2 — oaspeții nu pierd)`,
+            detail: "",
             ratio: 0.5,
             status: "pending",
           });
@@ -359,7 +359,7 @@ export function deriveLiveProgressRows(
           rows.push({
             id,
             label: baseLabel,
-            detail: `${hk}–${ak} · aștept final (fără egal la fluier)`,
+            detail: "",
             ratio: 0.5,
             status: "pending",
           });
