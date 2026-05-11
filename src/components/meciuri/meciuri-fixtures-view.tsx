@@ -8,6 +8,7 @@ import {
   fetchLiveFixturePatches,
   finishedFixtureWithinPostPollWindow,
   LIVE_FIXTURE_POLL_INTERVAL_MS,
+  upcomingFixtureWithinKickoffPollWindow,
 } from "@/lib/football-api/live-poll-client";
 import { mergeFixturePatch } from "@/lib/football-api/merge-fixture-patch";
 import type { NormalizedFixture } from "@/lib/football-api/types";
@@ -102,7 +103,8 @@ export function MeciuriFixturesView({
   const shouldPollFixturesLiveApi = useMemo(() => {
     const hasLive = fixtures.some((f) => f.bucket === "live");
     const hasRecentFinished = fixtures.some(finishedFixtureWithinPostPollWindow);
-    return hasLive || hasRecentFinished;
+    const hasImminentKickoff = fixtures.some(upcomingFixtureWithinKickoffPollWindow);
+    return hasLive || hasRecentFinished || hasImminentKickoff;
   }, [fixtures]);
 
   useEffect(() => {
@@ -115,10 +117,13 @@ export function MeciuriFixturesView({
       const liveIds = fixturesRef.current
         .filter((f) => f.bucket === "live")
         .map((f) => f.id);
+      const imminentKickoffIds = fixturesRef.current
+        .filter(upcomingFixtureWithinKickoffPollWindow)
+        .map((f) => f.id);
       const recentFinishedIds = fixturesRef.current
         .filter(finishedFixtureWithinPostPollWindow)
         .map((f) => f.id);
-      const ids = [...new Set([...liveIds, ...recentFinishedIds])];
+      const ids = [...new Set([...liveIds, ...imminentKickoffIds, ...recentFinishedIds])];
       if (ids.length === 0) return;
 
       try {

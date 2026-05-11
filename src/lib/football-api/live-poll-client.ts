@@ -20,6 +20,24 @@ export function finishedFixtureWithinPostPollWindow(
   return hoursSinceKickoff >= 0 && hoursSinceKickoff <= POST_FINISH_POLL_WINDOW_HOURS;
 }
 
+/**
+ * În jurul orei de start, bucket-ul poate întârzia câteva minute (API / ingest).
+ * Poll-uim meciurile `upcoming` într-o fereastră scurtă ca să prindem tranziția rapid.
+ */
+export const PRE_KICKOFF_POLL_WINDOW_MINUTES = 10;
+export const POST_KICKOFF_POLL_WINDOW_MINUTES = 20;
+
+export function upcomingFixtureWithinKickoffPollWindow(
+  f: Pick<NormalizedFixture, "bucket" | "timestamp">,
+): boolean {
+  if (f.bucket !== "upcoming") return false;
+  const minutesFromKickoff = (Date.now() / 1000 - f.timestamp) / 60;
+  return (
+    minutesFromKickoff >= -PRE_KICKOFF_POLL_WINDOW_MINUTES &&
+    minutesFromKickoff <= POST_KICKOFF_POLL_WINDOW_MINUTES
+  );
+}
+
 export async function fetchLiveFixturePatches(
   ids: readonly number[],
 ): Promise<NormalizedFixture[]> {

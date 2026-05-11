@@ -11,6 +11,7 @@ import type { PredictionPublicTeaser } from "@/lib/predictions/teaser-utils";
 import {
   fetchLiveFixturePatches,
   LIVE_FIXTURE_POLL_INTERVAL_MS,
+  upcomingFixtureWithinKickoffPollWindow,
 } from "@/lib/football-api/live-poll-client";
 import { mergeFixturePatch } from "@/lib/football-api/merge-fixture-patch";
 import type { NormalizedFixture } from "@/lib/football-api/types";
@@ -154,7 +155,8 @@ export function PredictiiFixturesView({
         p?.picks?.length && !isPredictionCombinationResolved(p),
       );
     });
-    return hasLive || hasFinishedPendingCombo;
+    const hasImminentKickoff = fixtures.some(upcomingFixtureWithinKickoffPollWindow);
+    return hasLive || hasFinishedPendingCombo || hasImminentKickoff;
   }, [fixtures, predictionsByFixtureId]);
 
   useEffect(() => {
@@ -168,6 +170,10 @@ export function PredictiiFixturesView({
         .filter((f) => f.bucket === "live")
         .filter((f) => !isDummyPredictiiFixtureId(f.id))
         .map((f) => f.id);
+      const imminentKickoffIds = fixturesRef.current
+        .filter(upcomingFixtureWithinKickoffPollWindow)
+        .filter((f) => !isDummyPredictiiFixtureId(f.id))
+        .map((f) => f.id);
       const finishedPendingIds = fixturesRef.current
         .filter((f) => f.bucket === "finished")
         .filter((f) => !isDummyPredictiiFixtureId(f.id))
@@ -178,7 +184,7 @@ export function PredictiiFixturesView({
           );
         })
         .map((f) => f.id);
-      const ids = [...new Set([...liveIds, ...finishedPendingIds])];
+      const ids = [...new Set([...liveIds, ...imminentKickoffIds, ...finishedPendingIds])];
       if (ids.length === 0) return;
 
       try {
