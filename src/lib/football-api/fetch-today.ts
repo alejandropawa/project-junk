@@ -163,3 +163,15 @@ export async function fetchTodayTrackedFixtures(): Promise<TodayFixturesResult> 
     fixtures: tracked,
   };
 }
+
+/**
+ * Pagini Meciuri / Predicții: în **development** folosește mereu date proaspete de la API
+ * (`cache: no-store`), ca lista de meciuri să nu rămână blocată în Data Cache-ul Next
+ * (altfel `fixture_id`-urile pot să nu coincidă cu rândurile din Supabase până la revalidare).
+ */
+export async function fetchTodayTrackedFixturesForUi(): Promise<TodayFixturesResult> {
+  if (process.env.NODE_ENV === "development") {
+    return fetchTodayTrackedFixturesFresh();
+  }
+  return fetchTodayTrackedFixtures();
+}

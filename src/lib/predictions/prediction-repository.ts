@@ -129,7 +129,17 @@ export async function fetchPredictionsForFixtureIds(
     .select("fixture_id,date_ro,payload")
     .in("fixture_id", ids);
 
-  if (error || !data) return out;
+  if (error) {
+    if (process.env.NODE_ENV === "development") {
+      console.error(
+        "[probix] fetchPredictionsForFixtureIds:",
+        error.message,
+        error.code,
+      );
+    }
+    return out;
+  }
+  if (!data) return out;
 
   const byFixture = new Map<
     number,

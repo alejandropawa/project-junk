@@ -7,7 +7,7 @@ import {
 } from "@/lib/predictions/teaser-utils";
 import { enrichFixturesWithLiveStatistics } from "@/lib/football-api/enrich-fixtures-live-statistics";
 import {
-  fetchTodayTrackedFixtures,
+  fetchTodayTrackedFixturesForUi,
   getBucharestDateString,
 } from "@/lib/football-api/fetch-today";
 import {
@@ -22,14 +22,14 @@ export const dynamic = "force-dynamic";
 
 export default async function PredictiiPage() {
   const supabase = await createClient();
-  /** Aliniat cu `proxy.ts`: JWT valid înainte de `getUser` (sesiune proaspăt refresh-uită). */
-  const { data: claimsData } = await supabase.auth.getClaims();
   const {
     data: { user },
   } = await supabase.auth.getUser();
-  const sessionUser = Boolean(claimsData?.claims?.sub ?? user?.id);
+  /** După `getUser`: claims pot lipsi în unele contexte RSC locale; prioritate `user.id`. */
+  const { data: claimsData } = await supabase.auth.getClaims();
+  const sessionUser = Boolean(user?.id ?? claimsData?.claims?.sub);
 
-  const data = await fetchTodayTrackedFixtures();
+  const data = await fetchTodayTrackedFixturesForUi();
 
   const predictionsByFixtureId: Record<number, PredictionPayload | undefined> =
     {};
@@ -76,6 +76,10 @@ export default async function PredictiiPage() {
             predictionsByFixtureId[f.id] = p;
           }
         }
+      } else if (process.env.NODE_ENV === "development") {
+        console.warn(
+          "[probix/predictii] Vizitator fără SUPABASE_SERVICE_ROLE_KEY: tabela prediction_reports nu e citibilă cu cheia anon (RLS). Pune service role în .env.local sau autentifică-te.",
+        );
       }
     }
   }
