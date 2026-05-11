@@ -48,6 +48,13 @@ export async function GET(req: Request) {
       ? imminentWithinMinParsed
       : null;
 
+  const fixtureIdRaw =
+    searchParams.get("fixture_id") ?? searchParams.get("fixtureId") ?? "";
+  const fixtureFilterId = fixtureIdRaw.trim()
+    ? Number(fixtureIdRaw.trim())
+    : NaN;
+  const hasFixtureFilter = Number.isFinite(fixtureFilterId);
+
   const secret = process.env.CRON_SECRET;
   const auth = req.headers.get("authorization");
   const oddsKey = process.env.ODDS_API_KEY?.trim();
@@ -93,9 +100,11 @@ export async function GET(req: Request) {
   const existingByFixtureId = await fetchPredictionsForDate(sb, data.date);
 
   const candidates = data.fixtures.filter((f) => {
+    if (hasFixtureFilter && f.id !== fixtureFilterId) return false;
     if (f.bucket !== "upcoming" && f.bucket !== "live") return false;
     const kickMs = f.timestamp * 1000;
-    if (now < kickMs - TEN_MIN_MS) return false;
+    const strictKickWindow = !hasFixtureFilter;
+    if (strictKickWindow && now < kickMs - TEN_MIN_MS) return false;
     if (
       imminentWithinMinutes != null &&
       f.bucket === "upcoming" &&
@@ -105,6 +114,27 @@ export async function GET(req: Request) {
     if (!overwritePredictions && existingByFixtureId.has(f.id)) return false;
     return true;
   });
+
+  if (hasFixtureFilter && candidates.length === 0) {
+    const anyFix = data.fixtures.find((f) => f.id === fixtureFilterId);
+    if (!anyFix) {
+      return Response.json(
+        {
+          ok: false,
+          message: `fixture_id ${fixtureFilterId} nu apare în ziua tracking (${data.date}).`,
+          processed: 0,
+        },
+        { status: 404 },
+      );
+    }
+    return Response.json({
+      ok: false,
+      message:
+        `fixture ${fixtureFilterId}: nu îndeplinește filtre (bucket=${anyFix.bucket}; folosește imminent_within_minutes sau overwrite după ora potrivită).`,
+      processed: 0,
+      hint: anyFix.bucket,
+    });
+  }
 
   /** Cron timeout: întâi toate lipsurile LIVE, apoi Urmează după ora start. */
   candidates.sort((a, b) => {
@@ -240,6 +270,7 @@ export async function GET(req: Request) {
       selectionMode: process.env.PROBIX_SELECTION_MODE?.trim() || "balanced",
       overwritePredictions,
       imminentWithinMinutes,
+      fixtureFilterId: hasFixtureFilter ? fixtureFilterId : null,
     },
     engine: "probix-deterministic-stats",
     at: new Date().toISOString(),
