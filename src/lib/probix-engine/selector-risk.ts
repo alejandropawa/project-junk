@@ -2,6 +2,7 @@ import {
   COMBO_CORR_PROB_DAMAGE_CAP,
   COMBO_HARD_CORRELATION_REJECT_SUM,
   MAX_CANDIDATES_FOR_COMBO_SEARCH,
+  MIN_TARGET_COMBINED_DECIMAL,
   MIN_DATA_QUALITY_FOR_PREDICTION,
   MIN_LEGS,
   MIN_MARKET_CONFIDENCE,
@@ -255,6 +256,44 @@ function upsertWinner(
   return current;
 }
 
+function combinedDecimalFromLegs(legs: EnrichedCandidate[]): number {
+  return legs.reduce((m, x) => m * x.bookmakerDecimal, 1);
+}
+
+function pickBestFinalist(
+  finalists: ComboWinner[],
+  w: SelectionWeightBundle,
+  hit: boolean,
+): ComboWinner | null {
+  if (!finalists.length) return null;
+
+  const meetsTarget = finalists.filter(
+    (cf) =>
+      combinedDecimalFromLegs(cf.picks) + 1e-9 >= MIN_TARGET_COMBINED_DECIMAL,
+  );
+  const pool = meetsTarget.length ? meetsTarget : finalists;
+
+  let best = pool[0];
+  for (let i = 1; i < pool.length; i++) {
+    const x = pool[i];
+    const d = x.comboScore - best.comboScore;
+    if (d > w.finalistScoreNearEps) best = x;
+    else if (Math.abs(d) <= w.finalistScoreNearEps) {
+      if (hit) {
+        if (x.picks.length < best.picks.length) best = x;
+        else if (
+          x.picks.length === best.picks.length &&
+          x.comboProbability > best.comboProbability + 1e-9
+        )
+          best = x;
+      } else if (x.comboProbability > best.comboProbability + 1e-9) {
+        best = x;
+      }
+    }
+  }
+  return best;
+}
+
 function riskFromCorr(corrSum: number, avgConf: number, dq: number): RiskRating {
   if (corrSum <= 0.22 && avgConf >= 0.66 && dq >= 0.62) {
     return "low";
@@ -427,24 +466,8 @@ export function selectComboAndRisk(
 
   if (!finalists.length) return null;
 
-  let best = finalists[0];
-  for (let i = 1; i < finalists.length; i++) {
-    const x = finalists[i];
-    const d = x.comboScore - best.comboScore;
-    if (d > w.finalistScoreNearEps) best = x;
-    else if (Math.abs(d) <= w.finalistScoreNearEps) {
-      if (hit) {
-        if (x.picks.length < best.picks.length) best = x;
-        else if (
-          x.picks.length === best.picks.length &&
-          x.comboProbability > best.comboProbability + 1e-9
-        )
-          best = x;
-      } else if (x.comboProbability > best.comboProbability + 1e-9) {
-        best = x;
-      }
-    }
-  }
+  let best = pickBestFinalist(finalists, w, hit);
+  if (!best) return null;
 
   let picksClean = dedupeExclusiveMarketOrder(best.picks);
   picksClean = picksClean.filter(isFullyEnriched);

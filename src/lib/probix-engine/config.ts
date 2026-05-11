@@ -1,7 +1,7 @@
 /**
  * Greutăți deterministe — calibrare manuală; versiune la schimbări majore.
  */
-export const PROBIX_ENGINE_VERSION = "probix-engine/1.3.1";
+export const PROBIX_ENGINE_VERSION = "probix-engine/1.3.2";
 
 /** Ligi eligibile pentru motor (calitate ridicată, date consistente). */
 export const PROBIX_ENGINE_LEAGUE_IDS = new Set<number>([
@@ -63,6 +63,13 @@ export const POOL_RANK_PROB_LEAN = 0.22;
 export const BOOK_ODDS_MIN = 1.2;
 
 export const BOOK_ODDS_MAX = 3.5;
+
+/**
+ * Cotă combinată vizată (decimal): produsul cotelor picioarelor.
+ * Dacă există candidat valid (single/double/triple) cu produs ≥ acest prag, este preferat;
+ * dacă niciuna nu ajunge la prag, folosim tot finaliștii (evităm lipsă predicție).
+ */
+export const MIN_TARGET_COMBINED_DECIMAL = 2.0;
 
 /** Prag calitate minimă pentru a accepta predicție. */
 export const MIN_DATA_QUALITY_FOR_PREDICTION = 0.38;
