@@ -70,7 +70,11 @@ export function deriveLiveStatsSplitFromEvents(
   return { home, away };
 }
 
-/** Preferă valorile din `/fixtures/statistics`; events completează câmpuri lipsă. */
+/**
+ * Unește `/fixtures/statistics` cu totaluri derivate din evenimente (când există).
+ * Pentru contori monotoni (cornere, cartonașe, faulturi), folosește **max(stat, events)**:
+ * uneori `/statistics` sub-reprezintă față de feed-ul de evenimente; invers, evenimentele pot lipsi.
+ */
 export function mergeLiveStatsSplits(
   fromStatistics: FixtureLiveStatsSplit | null | undefined,
   fromEvents: FixtureLiveStatsSplit | null | undefined,
@@ -89,6 +93,14 @@ export function mergeLiveStatsSplits(
     "redCards",
   ];
 
+  /** Câmpuri unde două surse independente pot diferi — preferăm valoarea mai mare (nu sub-evaluează). */
+  const MAX_IF_BOTH: Partial<Record<keyof FixtureTeamLiveNumbers, true>> = {
+    corners: true,
+    yellowCards: true,
+    redCards: true,
+    fouls: true,
+  };
+
   const mergeSide = (role: "home" | "away"): FixtureTeamLiveNumbers => {
     const ev = fromEvents?.[role] ?? {};
     const st = fromStatistics?.[role] ?? {};
@@ -96,12 +108,20 @@ export function mergeLiveStatsSplits(
     for (const k of KEYS) {
       const a = st[k];
       const b = ev[k];
-      const chosen =
-        typeof a === "number" && Number.isFinite(a)
-          ? a
-          : typeof b === "number" && Number.isFinite(b)
-            ? b
-            : undefined;
+      const na =
+        typeof a === "number" && Number.isFinite(a) ? (a as number) : null;
+      const nb =
+        typeof b === "number" && Number.isFinite(b) ? (b as number) : null;
+
+      let chosen: number | undefined;
+      if (MAX_IF_BOTH[k] && na != null && nb != null) {
+        chosen = Math.max(na, nb);
+      } else if (na != null) {
+        chosen = na;
+      } else if (nb != null) {
+        chosen = nb;
+      }
+
       if (chosen !== undefined) Object.assign(out, { [k]: chosen });
     }
     return out;

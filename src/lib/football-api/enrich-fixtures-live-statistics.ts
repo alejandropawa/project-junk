@@ -49,12 +49,8 @@ export async function enrichFixturesWithLiveStatistics(
           headers,
         );
 
-        const fetchEventsToo =
-          f.bucket === "live" || splitFromApi == null;
-        let evPayload: unknown[] | undefined;
-        if (fetchEventsToo) {
-          evPayload = await fetchFixtureEventsPayload(f.id, headers);
-        }
+        /** Mereu `/fixtures/events`: la FT unele ligi au cornere doar în evenimente; la live deja necesar. */
+        const evPayload = await fetchFixtureEventsPayload(f.id, headers);
 
         const splitFromEv = deriveLiveStatsSplitFromEvents(
           evPayload,
