@@ -297,14 +297,17 @@ export function deriveLiveProgressRows(
             ratio: 0.5,
             status: "pending",
           });
-        else if (!finished)
+        else if (!finished) {
+          // Dacă scorul curent ar pierde selecția, arătăm 0% (altfel 50% până la final).
+          const okNow = hk >= ak; // 1X ⇒ gazda nu pierde
           rows.push({
             id,
             label: baseLabel,
             detail: "",
-            ratio: 0.5,
+            ratio: okNow ? 0.5 : 0,
             status: "pending",
           });
+        }
         else {
           const ok = hk >= ak;
           rows.push({
@@ -326,14 +329,16 @@ export function deriveLiveProgressRows(
             ratio: 0.5,
             status: "pending",
           });
-        else if (!finished)
+        else if (!finished) {
+          const okNow = ak >= hk; // X2 ⇒ oaspeții nu pierd
           rows.push({
             id,
             label: baseLabel,
             detail: "",
-            ratio: 0.5,
+            ratio: okNow ? 0.5 : 0,
             status: "pending",
           });
+        }
         else {
           const ok = ak >= hk;
           rows.push({
@@ -355,14 +360,17 @@ export function deriveLiveProgressRows(
             ratio: 0.5,
             status: "pending",
           });
-        else if (!finished)
+        else if (!finished) {
+          // 12 ⇒ fără egal la fluier. Dacă acum e egal, ar pierde selecția dacă s-ar termina acum.
+          const okNow = hk !== ak;
           rows.push({
             id,
             label: baseLabel,
             detail: "",
-            ratio: 0.5,
+            ratio: okNow ? 0.5 : 0,
             status: "pending",
           });
+        }
         else {
           const ok = hk !== ak;
           rows.push({
@@ -387,9 +395,23 @@ export function deriveLiveProgressRows(
     }
   }
 
-  /** Pre-live: fără text auxiliar sub etichetă (la live datele sunt adesea 0, nu null — nu apare „nesincronizate”). */
+  /**
+   * Pre-live:
+   * - fără text auxiliar sub etichetă
+   * - toate barele pornesc de la 0% (inclusiv 1X / X2 / 12 etc.)
+   */
   if (fixture.bucket === "upcoming") {
-    return rows.map((r) => ({ ...r, detail: "" }));
+    return rows.map((r) => {
+      if (r.status === "complete" || r.status === "failed") {
+        return { ...r, detail: "" };
+      }
+      return {
+        ...r,
+        detail: "",
+        status: "pending",
+        ratio: 0,
+      };
+    });
   }
 
   return rows;

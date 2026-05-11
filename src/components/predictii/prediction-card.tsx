@@ -295,11 +295,6 @@ function progressStatusLabel(row: LiveProgressRow) {
         </span>
       );
     case "awaiting_data":
-      return (
-        <span className="shrink-0 font-medium text-foreground-muted">
-          aștept date
-        </span>
-      );
     default:
       return (
         <span className="shrink-0 font-medium text-foreground-muted">
@@ -328,12 +323,9 @@ function ComboProgressStrip({ rows }: { rows: LiveProgressRow[] }) {
         {rows.map((row) => {
           const pct = progressBarFillPercent(row);
           const fail = row.status === "failed";
-          const wait = row.status === "awaiting_data";
           const fill = fail
             ? "bg-red-400/45"
-            : wait
-              ? "bg-amber-400/40"
-              : "bg-gradient-to-r from-primary/80 to-probix-purple/70";
+            : "bg-gradient-to-r from-primary/80 to-probix-purple/70";
           const showDetail = row.detail.trim().length > 0;
 
           return (
