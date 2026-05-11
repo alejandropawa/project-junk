@@ -1,4 +1,5 @@
 import type { PredictionPick, PredictionSettlement } from "@/lib/predictions/types";
+import { isTerminalFixtureStatus } from "@/lib/football-api/bucket";
 import { parseTotalsOuMarketId } from "@/lib/probix-engine/total-market-id";
 import type { NormalizedFixture } from "@/lib/football-api/types";
 
@@ -67,7 +68,7 @@ function evaluateHalfTotal(
 export function evaluatePickResult(
   fixture: Pick<
     NormalizedFixture,
-    "bucket" | "homeGoals" | "awayGoals" | "liveStatsSplit"
+    "bucket" | "homeGoals" | "awayGoals" | "liveStatsSplit" | "statusShort"
   >,
   pick: PredictionPick,
   opts?: LiveTotalsOpts,
@@ -77,7 +78,9 @@ export function evaluatePickResult(
   const knownScore =
     fixture.bucket !== "upcoming" && h != null && a != null;
   const G = knownScore ? h + a : null;
-  const finished = fixture.bucket === "finished";
+  const finished =
+    fixture.bucket === "finished" &&
+    isTerminalFixtureStatus(fixture.statusShort);
 
   const spec = pick.marketId ? parseTotalsOuMarketId(pick.marketId) : null;
   if (spec) {
@@ -119,7 +122,7 @@ export function evaluatePickResult(
 export function deriveComboVisualSettlement(
   fixture: Pick<
     NormalizedFixture,
-    "bucket" | "homeGoals" | "awayGoals" | "liveStatsSplit"
+    "bucket" | "homeGoals" | "awayGoals" | "liveStatsSplit" | "statusShort"
   >,
   picks: PredictionPick[] | undefined,
   backend: PredictionSettlement | undefined,
@@ -127,6 +130,7 @@ export function deriveComboVisualSettlement(
 ): Exclude<PredictionSettlement, "pending"> | "pending" {
   if (backend && backend !== "pending") return backend;
   if (!picks?.length || fixture.bucket !== "finished") return "pending";
+  if (!isTerminalFixtureStatus(fixture.statusShort)) return "pending";
 
   const results = picks.map((p) => evaluatePickResult(fixture, p, opts));
   if (results.some((r) => r === "void")) return "void";

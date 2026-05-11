@@ -1,3 +1,4 @@
+import { isTerminalFixtureStatus } from "@/lib/football-api/bucket";
 import { predictionPickLineRo } from "@/lib/predictions/pick-result";
 import type { PredictionPick } from "@/lib/predictions/types";
 import { parseTotalsOuMarketId } from "@/lib/probix-engine/total-market-id";
@@ -19,7 +20,7 @@ export type LiveProgressRow = {
 
 type FixtureSlice = Pick<
   NormalizedFixture,
-  "bucket" | "homeGoals" | "awayGoals" | "liveStatsSplit"
+  "bucket" | "homeGoals" | "awayGoals" | "liveStatsSplit" | "statusShort"
 >;
 
 function goalsTotal(f: FixtureSlice): number | null {
@@ -184,7 +185,9 @@ export function deriveLiveProgressRows(
 
   const knownScore = hk != null && ak != null;
 
-  const finished = fixture.bucket === "finished";
+  const finished =
+    fixture.bucket === "finished" &&
+    isTerminalFixtureStatus(fixture.statusShort);
 
   const rows: LiveProgressRow[] = [];
 

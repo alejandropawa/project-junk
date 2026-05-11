@@ -8,9 +8,14 @@ import { PredictionCard } from "@/components/predictii/prediction-card";
 import { Card } from "@/components/ds/card";
 import type { PredictionPayload } from "@/lib/predictions/types";
 import type { PredictionPublicTeaser } from "@/lib/predictions/teaser-utils";
+import {
+  fetchLiveFixturePatches,
+  LIVE_FIXTURE_POLL_INTERVAL_MS,
+} from "@/lib/football-api/live-poll-client";
 import { mergeFixturePatch } from "@/lib/football-api/merge-fixture-patch";
 import type { NormalizedFixture } from "@/lib/football-api/types";
 import { isDummyPredictiiFixtureId } from "@/lib/predictii/dummy-preview";
+import { isPredictionCombinationResolved } from "@/lib/predictions/prediction-access";
 import { cn } from "@/lib/utils";
 
 type Tab = "all" | "live" | "upcoming" | "finished";
@@ -95,10 +100,15 @@ export function PredictiiFixturesView({
   const [tab, setTab] = useState<Tab>("all");
   const [fixtures, setFixtures] = useState(initialFixtures);
   const fixturesRef = useRef(fixtures);
+  const predictionsByFixtureIdRef = useRef(predictionsByFixtureId);
 
   useLayoutEffect(() => {
     fixturesRef.current = fixtures;
   }, [fixtures]);
+
+  useLayoutEffect(() => {
+    predictionsByFixtureIdRef.current = predictionsByFixtureId;
+  }, [predictionsByFixtureId]);
 
   /**
    * Dacă HTML-ul a fost randat fără sesiune (SSR) dar browserul are sesiune Supabase,
@@ -131,14 +141,24 @@ export function PredictiiFixturesView({
     queueMicrotask(() => setFixtures(initialFixtures));
   }, [date, initialFixtures]);
 
-  const hasLive = useMemo(
-    () => fixtures.some((f) => f.bucket === "live"),
-    [fixtures],
-  );
+  /**
+   * Poll 60s: meciuri live + meciuri FT încă cu combinație `pending` în payload,
+   * ca bucket/scor/statistici să se stabilizeze înainte de verdict UI + cron settle.
+   */
+  const shouldPollFixturesLiveApi = useMemo(() => {
+    const hasLive = fixtures.some((f) => f.bucket === "live");
+    const hasFinishedPendingCombo = fixtures.some((f) => {
+      if (f.bucket !== "finished" || isDummyPredictiiFixtureId(f.id)) return false;
+      const p = predictionsByFixtureId[f.id];
+      return Boolean(
+        p?.picks?.length && !isPredictionCombinationResolved(p),
+      );
+    });
+    return hasLive || hasFinishedPendingCombo;
+  }, [fixtures, predictionsByFixtureId]);
 
-  /** Aliniat la pagina Meciuri: refreshează scor/minut/statistici pentru live */
   useEffect(() => {
-    if (!ok || !hasLive) return;
+    if (!ok || !shouldPollFixturesLiveApi) return;
 
     let cancelled = false;
 
@@ -148,16 +168,22 @@ export function PredictiiFixturesView({
         .filter((f) => f.bucket === "live")
         .filter((f) => !isDummyPredictiiFixtureId(f.id))
         .map((f) => f.id);
-      if (liveIds.length === 0) return;
+      const finishedPendingIds = fixturesRef.current
+        .filter((f) => f.bucket === "finished")
+        .filter((f) => !isDummyPredictiiFixtureId(f.id))
+        .filter((f) => {
+          const p = predictionsByFixtureIdRef.current[f.id];
+          return Boolean(
+            p?.picks?.length && !isPredictionCombinationResolved(p),
+          );
+        })
+        .map((f) => f.id);
+      const ids = [...new Set([...liveIds, ...finishedPendingIds])];
+      if (ids.length === 0) return;
 
       try {
-        const res = await fetch(`/api/fixtures/live?ids=${liveIds.join("-")}`, {
-          cache: "no-store",
-        });
-        if (!res.ok || cancelled) return;
-        const data = (await res.json()) as { fixtures?: NormalizedFixture[] };
-        const next = data.fixtures;
-        if (!next?.length) return;
+        const next = await fetchLiveFixturePatches(ids);
+        if (!next.length || cancelled) return;
         setFixtures((prev) => mergeFixturePatch(prev, next));
       } catch {
         /* rețea / timeout */
@@ -165,13 +191,13 @@ export function PredictiiFixturesView({
     };
 
     void tick();
-    const id = window.setInterval(tick, 60_000);
+    const id = window.setInterval(tick, LIVE_FIXTURE_POLL_INTERVAL_MS);
 
     return () => {
       cancelled = true;
       window.clearInterval(id);
     };
-  }, [ok, hasLive]);
+  }, [ok, shouldPollFixturesLiveApi]);
 
   const filtered = useMemo(
     () => filterForTab(fixtures, tab),

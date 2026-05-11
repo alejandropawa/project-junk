@@ -4,6 +4,11 @@ import Image from "next/image";
 import { useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import { Card } from "@/components/ds/card";
 import { FixtureRow } from "@/components/football/fixture-row";
+import {
+  fetchLiveFixturePatches,
+  finishedFixtureWithinPostPollWindow,
+  LIVE_FIXTURE_POLL_INTERVAL_MS,
+} from "@/lib/football-api/live-poll-client";
 import { mergeFixturePatch } from "@/lib/football-api/merge-fixture-patch";
 import type { NormalizedFixture } from "@/lib/football-api/types";
 import { cn } from "@/lib/utils";
@@ -93,14 +98,15 @@ export function MeciuriFixturesView({
     queueMicrotask(() => setFixtures(initialFixtures));
   }, [date, initialFixtures]);
 
-  const hasLive = useMemo(
-    () => fixtures.some((f) => f.bucket === "live"),
-    [fixtures],
-  );
+  /** Poll 60s: live + finaluri recente (statistici se stabilizează după fluier). */
+  const shouldPollFixturesLiveApi = useMemo(() => {
+    const hasLive = fixtures.some((f) => f.bucket === "live");
+    const hasRecentFinished = fixtures.some(finishedFixtureWithinPostPollWindow);
+    return hasLive || hasRecentFinished;
+  }, [fixtures]);
 
-  /** Doar dacă sunt meciuri live: poll la ~1 min la API-ul live (fără call când nimic nu e în joc). */
   useEffect(() => {
-    if (!ok || !hasLive) return;
+    if (!ok || !shouldPollFixturesLiveApi) return;
 
     let cancelled = false;
 
@@ -109,17 +115,15 @@ export function MeciuriFixturesView({
       const liveIds = fixturesRef.current
         .filter((f) => f.bucket === "live")
         .map((f) => f.id);
-      if (liveIds.length === 0) return;
+      const recentFinishedIds = fixturesRef.current
+        .filter(finishedFixtureWithinPostPollWindow)
+        .map((f) => f.id);
+      const ids = [...new Set([...liveIds, ...recentFinishedIds])];
+      if (ids.length === 0) return;
 
       try {
-        const res = await fetch(
-          `/api/fixtures/live?ids=${liveIds.join("-")}`,
-          { cache: "no-store" },
-        );
-        if (!res.ok || cancelled) return;
-        const data = (await res.json()) as { fixtures?: NormalizedFixture[] };
-        const next = data.fixtures;
-        if (!next?.length) return;
+        const next = await fetchLiveFixturePatches(ids);
+        if (!next.length || cancelled) return;
         setFixtures((prev) => mergeFixturePatch(prev, next));
       } catch {
         /* rețea / timeout */
@@ -127,13 +131,13 @@ export function MeciuriFixturesView({
     };
 
     void tick();
-    const id = window.setInterval(tick, 60_000);
+    const id = window.setInterval(tick, LIVE_FIXTURE_POLL_INTERVAL_MS);
 
     return () => {
       cancelled = true;
       window.clearInterval(id);
     };
-  }, [ok, hasLive]);
+  }, [ok, shouldPollFixturesLiveApi]);
 
   const dateLong = useMemo(() => {
     const [yy, mm, dd] = date.split("-").map(Number);

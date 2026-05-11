@@ -9,6 +9,7 @@ import { normalizeFixtureRow } from "@/lib/football-api/normalize-fixture-row";
 import type { ApiFixtureRow } from "@/lib/football-api/types";
 import { parseApiResponse } from "@/lib/football-api/types";
 import type { NormalizedFixture } from "@/lib/football-api/types";
+import { isTerminalFixtureStatus } from "@/lib/football-api/bucket";
 import { TRACKED_LEAGUE_IDS } from "@/lib/football-api/tracked-leagues";
 import { hasRealFootballApiErrors } from "@/lib/football-api/response-errors";
 import { liveTotalsFromFixture } from "@/lib/football-api/fixture-live-stats";
@@ -26,6 +27,7 @@ export function mergedPayloadWithSettlement(
   if (isPredictionCombinationResolved(payload)) return null;
   if (!payload.picks?.length) return null;
   if (nf.bucket !== "finished") return null;
+  if (!isTerminalFixtureStatus(nf.statusShort)) return null;
 
   const totals = liveTotalsFromFixture(nf);
   const derived = deriveComboVisualSettlement(

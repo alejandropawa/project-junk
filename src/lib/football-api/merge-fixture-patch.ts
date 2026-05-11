@@ -88,14 +88,46 @@ export function mergeFixturePatch(
     const p = m.get(f.id);
     if (!p) return f;
 
-    if (f.bucket === "finished") return f;
+    /** API revine la „live” din eroare — păstrăm finalul deja afișat. */
+    if (f.bucket === "finished" && p.bucket !== "finished") return f;
 
-    if (p.bucket === "finished") {
+    /** Două snapshot-uri FT: actualizăm scorul oficial și statisticile (uneori complete târziu). */
+    if (f.bucket === "finished" && p.bucket === "finished") {
+      const split = mergeLiveStatsSplitMonotonic(
+        f.liveStatsSplit,
+        p.liveStatsSplit,
+      );
       return {
         ...f,
         ...p,
+        homeGoals: p.homeGoals ?? f.homeGoals,
+        awayGoals: p.awayGoals ?? f.awayGoals,
+        minute: p.minute ?? f.minute,
         liveStatsSplit:
-          p.liveStatsSplit !== undefined ? p.liveStatsSplit : f.liveStatsSplit,
+          split !== undefined ? split : p.liveStatsSplit ?? f.liveStatsSplit,
+      };
+    }
+
+    if (p.bucket === "finished") {
+      const split = mergeLiveStatsSplitMonotonic(
+        f.liveStatsSplit,
+        p.liveStatsSplit,
+      );
+      return {
+        ...f,
+        ...p,
+        homeGoals: monotonicGoals(
+          f.homeGoals,
+          p.homeGoals,
+          f.bucket === "live",
+        ),
+        awayGoals: monotonicGoals(
+          f.awayGoals,
+          p.awayGoals,
+          f.bucket === "live",
+        ),
+        liveStatsSplit:
+          split !== undefined ? split : p.liveStatsSplit ?? f.liveStatsSplit,
       };
     }
 
