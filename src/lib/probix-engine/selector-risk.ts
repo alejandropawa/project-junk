@@ -213,8 +213,8 @@ function bookLegEdgesOkForCombo(
   return true;
 }
 
-function upsertWinner(
-  current: ComboWinner | null,
+/** Construiește combo dacă trece toate porțile (fără comparație cu alt scor). */
+function tryComboWinner(
   legs: EnrichedCandidate[],
   type: ProbixComboType,
   rt: RuntimeCtx,
@@ -222,28 +222,28 @@ function upsertWinner(
 ): ComboWinner | null {
   const hit = rt.selectionMode === "hit_rate";
   if (type === "triple" && minConfidenceLeg3 != null) {
-    if (legs.some((x) => x.confidence < minConfidenceLeg3)) return current;
+    if (legs.some((x) => x.confidence < minConfidenceLeg3)) return null;
   }
-  if (!comboExclusiveOk(legs)) return current;
-  if (!bookLegEdgesOkForCombo(legs, rt.w.bookComboMinLegEdge)) return current;
+  if (!comboExclusiveOk(legs)) return null;
+  if (!bookLegEdgesOkForCombo(legs, rt.w.bookComboMinLegEdge)) return null;
 
   const syn = legs.filter((x) => x.oddsSource === "synthetic_fallback").length;
 
   if (hit) {
     if (type === "triple") {
-      if (!hitRateTripleAllowed(legs, rt.w.bookComboMinLegEdge)) return current;
-      if (syn > 0) return current;
+      if (!hitRateTripleAllowed(legs, rt.w.bookComboMinLegEdge)) return null;
+      if (syn > 0) return null;
     }
-    if (legs.length > 1 && syn === legs.length) return current;
+    if (legs.length > 1 && syn === legs.length) return null;
   }
 
   const ev = evaluateCombo(legs, rt);
-  if (!ev) return current;
+  if (!ev) return null;
 
   const combinedD = legs.reduce((m, x) => m * x.bookmakerDecimal, 1);
-  if (!(combinedD >= 1.05)) return current;
+  if (!(combinedD >= 1.05)) return null;
 
-  const next: ComboWinner = {
+  return {
     picks: legs,
     comboType: type,
     comboScore: ev.score,
@@ -251,9 +251,74 @@ function upsertWinner(
     totalEdge: ev.totalEdge,
     corrSum: ev.corrSum,
   };
+}
 
+function upsertWinner(
+  current: ComboWinner | null,
+  legs: EnrichedCandidate[],
+  type: ProbixComboType,
+  rt: RuntimeCtx,
+  minConfidenceLeg3?: number,
+): ComboWinner | null {
+  const next = tryComboWinner(legs, type, rt, minConfidenceLeg3);
+  if (!next) return current;
   if (!current || next.comboScore > current.comboScore + 1e-9) return next;
   return current;
+}
+
+function comboDedupeKey(w: ComboWinner): string {
+  return `${w.comboType}:${[...w.picks.map((p) => p.marketId)].sort().join("|")}`;
+}
+
+/** Cea mai bună dublă cu produs cote ≥ MIN_TARGET (poate diferi de bestDouble după scor). */
+function bestDoubleMeetingMinCombined(
+  slice: EnrichedCandidate[],
+  rt: RuntimeCtx,
+): ComboWinner | null {
+  const n = slice.length;
+  let best: ComboWinner | null = null;
+  for (let i = 0; i < n; i++) {
+    for (let j = i + 1; j < n; j++) {
+      const cw = tryComboWinner([slice[i], slice[j]], "double", rt);
+      if (!cw) continue;
+      if (
+        combinedDecimalFromLegs(cw.picks) + 1e-9 <
+        MIN_TARGET_COMBINED_DECIMAL
+      )
+        continue;
+      if (!best || cw.comboScore > best.comboScore + 1e-9) best = cw;
+    }
+  }
+  return best;
+}
+
+function bestTripleMeetingMinCombined(
+  slice: EnrichedCandidate[],
+  rt: RuntimeCtx,
+  minCleg3: number,
+): ComboWinner | null {
+  const n = slice.length;
+  let best: ComboWinner | null = null;
+  for (let i = 0; i < n; i++) {
+    for (let j = i + 1; j < n; j++) {
+      for (let k = j + 1; k < n; k++) {
+        const cw = tryComboWinner(
+          [slice[i], slice[j], slice[k]],
+          "triple",
+          rt,
+          minCleg3,
+        );
+        if (!cw) continue;
+        if (
+          combinedDecimalFromLegs(cw.picks) + 1e-9 <
+          MIN_TARGET_COMBINED_DECIMAL
+        )
+          continue;
+        if (!best || cw.comboScore > best.comboScore + 1e-9) best = cw;
+      }
+    }
+  }
+  return best;
 }
 
 function combinedDecimalFromLegs(legs: EnrichedCandidate[]): number {
@@ -444,9 +509,26 @@ export function selectComboAndRisk(
     }
   }
 
+  const bestDoubleMinCota = bestDoubleMeetingMinCombined(slice, rt);
+  const bestTripleMinCota = bestTripleMeetingMinCombined(
+    slice,
+    rt,
+    minCleg3,
+  );
+
   const finalists: ComboWinner[] = [];
-  if (bestSingle) finalists.push(bestSingle);
-  if (bestDouble) finalists.push(bestDouble);
+  const finalistSeen = new Set<string>();
+  const pushFinalist = (w: ComboWinner | null) => {
+    if (!w) return;
+    const k = comboDedupeKey(w);
+    if (finalistSeen.has(k)) return;
+    finalistSeen.add(k);
+    finalists.push(w);
+  };
+
+  pushFinalist(bestSingle);
+  pushFinalist(bestDouble);
+  pushFinalist(bestDoubleMinCota);
 
   const hit = selectionMode === "hit_rate";
   let tripleEligible = false;
@@ -462,7 +544,8 @@ export function selectComboAndRisk(
       tripleEligible &&
       hitRateTripleAllowed(bestTriple.picks, w.bookComboMinLegEdge);
   }
-  if (bestTriple && tripleEligible) finalists.push(bestTriple);
+  if (bestTriple && tripleEligible) pushFinalist(bestTriple);
+  pushFinalist(bestTripleMinCota);
 
   if (!finalists.length) return null;
 
