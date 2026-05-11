@@ -1,8 +1,10 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useState } from "react";
-import { HistoricPredictionCard } from "@/components/istoric/historic-prediction-card";
 import { IstoricCalendar } from "@/components/istoric/istoric-calendar";
+import { PredictionCard } from "@/components/predictii/prediction-card";
+import type { NormalizedFixture } from "@/lib/football-api/types";
+import { toSyntheticFinishedFixture } from "@/lib/predictions/historic-row-to-fixture";
 import type { PredictionReportRow } from "@/lib/predictions/prediction-repository";
 import type { HistoricEngineMetricsSummary } from "@/lib/predictions/historic-metrics";
 import { defaultSelectableDateRoInMonth } from "@/lib/football-api/bucharest-calendar";
@@ -43,6 +45,9 @@ function MetricTile({ label, value }: { label: string; value: string }) {
 export function IstoricView({ todayRo }: IstoricViewProps) {
   const [selectedDateRo, setSelectedDateRo] = useState(todayRo);
   const [rows, setRows] = useState<PredictionReportRow[]>([]);
+  const [fixturesById, setFixturesById] = useState<
+    Record<string, NormalizedFixture>
+  >({});
   const [loadingDay, setLoadingDay] = useState(false);
   const [metrics, setMetrics] = useState<EngineMetrics | null>(null);
   const [loadingMetrics, setLoadingMetrics] = useState(false);
@@ -123,20 +128,28 @@ export function IstoricView({ todayRo }: IstoricViewProps) {
           { cache: "no-store" },
         );
         if (!res.ok) {
-          if (!cancelled) setRows([]);
+          if (!cancelled) {
+            setRows([]);
+            setFixturesById({});
+          }
           return;
         }
         const j = (await res.json()) as {
           rows?: PredictionReportRow[];
           tier?: string;
+          fixtures_by_id?: Record<string, NormalizedFixture>;
         };
         if (!cancelled) {
           setRows(j.rows ?? []);
+          setFixturesById(j.fixtures_by_id ?? {});
           const t = pickTier(j.tier);
           if (t) setTier(t);
         }
       } catch {
-        if (!cancelled) setRows([]);
+        if (!cancelled) {
+          setRows([]);
+          setFixturesById({});
+        }
       } finally {
         if (!cancelled) setLoadingDay(false);
       }
@@ -204,12 +217,21 @@ export function IstoricView({ todayRo }: IstoricViewProps) {
               </p>
             </Card>
           ) : (
-            <ul className="grid grid-cols-1 gap-3 md:grid-cols-2 md:gap-4">
-              {rows.map((row) => (
-                <li key={`${row.fixture_id}-${row.date_ro}`} className="min-w-0">
-                  <HistoricPredictionCard row={row} />
-                </li>
-              ))}
+            <ul className="grid grid-cols-1 gap-2 [grid-auto-rows:minmax(0,_auto)] md:grid-cols-2 md:gap-2.5 [&>*]:min-w-0">
+              {rows.map((row) => {
+                const fixture =
+                  fixturesById[String(row.fixture_id)] ??
+                  toSyntheticFinishedFixture(row);
+                return (
+                  <li key={`${row.fixture_id}-${row.date_ro}`} className="min-w-0">
+                    <PredictionCard
+                      fixture={fixture}
+                      unlocked={tier === "full"}
+                      prediction={row.payload}
+                    />
+                  </li>
+                );
+              })}
             </ul>
           )}
         </div>

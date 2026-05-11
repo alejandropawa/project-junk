@@ -51,7 +51,15 @@ function feedNumber(
     into.fouls = n;
     return;
   }
-  if (matchType(lower, ["dangerous attack"])) {
+  if (
+    matchType(lower, [
+      "dangerous attack",
+      "dangerous attacks",
+      "attack dangerous",
+      "attacks dangerous",
+    ]) ||
+    lower.replace(/[\s_-]/g, "").includes("dangerousattack")
+  ) {
     into.dangerousAttacks = n;
     return;
   }
@@ -72,7 +80,10 @@ function feedNumber(
     into.yellowCards = n;
     return;
   }
-  if (matchType(lower, ["red card"])) {
+  if (
+    matchType(lower, ["red card", "red cards"]) ||
+    /\bred\s+cards?\b/i.test(lower)
+  ) {
     into.redCards = n;
     return;
   }

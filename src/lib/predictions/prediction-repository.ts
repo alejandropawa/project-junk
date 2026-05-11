@@ -183,6 +183,30 @@ export async function deleteAllPredictionReports(
   return { ok: true };
 }
 
+/** Toate rândurile din `prediction_reports` (paginat) — pentru job-uri admin / migrări. */
+export async function fetchAllPredictionReportRows(
+  sb: SupabaseClient,
+): Promise<PredictionReportRow[]> {
+  const page = 400;
+  const out: PredictionReportRow[] = [];
+  let from = 0;
+  for (;;) {
+    const { data, error } = await sb
+      .from(TABLE)
+      .select(
+        "fixture_id,date_ro,home_name,away_name,league_name,kickoff_iso,payload",
+      )
+      .order("date_ro", { ascending: false })
+      .order("kickoff_iso", { ascending: false })
+      .range(from, from + page - 1);
+    if (error || !data?.length) break;
+    out.push(...(data as PredictionReportRow[]));
+    if ((data as unknown[]).length < page) break;
+    from += page;
+  }
+  return out;
+}
+
 export async function fetchAllPredictionPayloadsForMetrics(
   sb: SupabaseClient,
 ): Promise<PredictionPayload[]> {

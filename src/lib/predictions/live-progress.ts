@@ -104,23 +104,26 @@ function pushHalfOuProgressRow(
       rows.push({
         id,
         label: baseLabel,
-        detail: `${raw} / minim ${need} ✓`,
+        /** Stare doar în UI (Progres selecții); fără text duplicat aici. */
+        detail: "",
         ratio: 1,
         status: "complete",
       });
     } else if (finished) {
+      const cur = Math.round(raw);
       rows.push({
         id,
         label: baseLabel,
-        detail: `${raw} / minim ${need} ✕`,
+        detail: `${cur} / ${need} ${u}`,
         ratio: Math.min(1, raw / Math.max(1, need)),
         status: "failed",
       });
     } else {
+      const cur = Math.round(raw);
       rows.push({
         id,
         label: baseLabel,
-        detail: `${raw} / minim ${need} · în curs`,
+        detail: `${cur} / ${need} ${u}`,
         ratio: Math.min(1, raw / Math.max(1, need)),
         status: "pending",
       });
@@ -130,10 +133,11 @@ function pushHalfOuProgressRow(
 
   const maxOk = Math.floor(line + 1e-9);
   if (raw > maxOk) {
+    const cur = Math.round(raw);
     rows.push({
       id,
       label: baseLabel,
-      detail: `${raw} ${u} > max ${maxOk} ✕`,
+      detail: `${cur} / ${maxOk} ${u}`,
       ratio: 0,
       status: "failed",
     });
@@ -141,15 +145,16 @@ function pushHalfOuProgressRow(
     rows.push({
       id,
       label: baseLabel,
-      detail: `Max ${maxOk} (${u}) ✓ (${raw})`,
+      detail: "",
       ratio: 1,
       status: "complete",
     });
   } else {
+    const cur = Math.round(raw);
     rows.push({
       id,
       label: baseLabel,
-      detail: `${raw}/${maxOk} (${u}) · în curs`,
+      detail: `${cur} / ${maxOk} ${u}`,
       ratio: Math.min(1, (maxOk - raw + (facet === "goals" ? 0.3 : 0.5)) / maxOk),
       status: "pending",
     });
@@ -220,7 +225,7 @@ export function deriveLiveProgressRows(
           rows.push({
             id,
             label: baseLabel,
-            detail: `${hk}–${ak} ✓`,
+            detail: "",
             ratio: 1,
             status: "complete",
           });
@@ -228,7 +233,7 @@ export function deriveLiveProgressRows(
           rows.push({
             id,
             label: baseLabel,
-            detail: `${hk}–${ak} ✕`,
+            detail: `${hk}–${ak}`,
             ratio: 0,
             status: "failed",
           });
@@ -237,7 +242,7 @@ export function deriveLiveProgressRows(
           rows.push({
             id,
             label: baseLabel,
-            detail: `${hk}–${ak} · în curs`,
+            detail: `${hk}–${ak}`,
             ratio: progressed,
             status: "pending",
           });
@@ -257,7 +262,7 @@ export function deriveLiveProgressRows(
           rows.push({
             id,
             label: baseLabel,
-            detail: `${hk}–${ak} ✕ BTTS realizat`,
+            detail: `${hk}–${ak}`,
             ratio: 0,
             status: "failed",
           });
@@ -265,7 +270,7 @@ export function deriveLiveProgressRows(
           rows.push({
             id,
             label: baseLabel,
-            detail: `${hk}–${ak} ✓ fără ambele la gol`,
+            detail: "",
             ratio: 1,
             status: "complete",
           });
@@ -273,19 +278,28 @@ export function deriveLiveProgressRows(
           rows.push({
             id,
             label: baseLabel,
-            detail: `${hk}–${ak} · încă posibil BTTS`,
+            detail: `${hk}–${ak}`,
             ratio: 0.35,
             status: "pending",
           });
         break;
       }
+      /** Șansă dublă / rezultat la fluier: bară 50% până la final; 100% câștig, 50% eșec. */
       case "dc_1x": {
         if (!knownScore || hk == null || ak == null)
           rows.push({
             id,
             label: baseLabel,
             detail: "1X",
-            ratio: null,
+            ratio: 0.5,
+            status: "pending",
+          });
+        else if (!finished)
+          rows.push({
+            id,
+            label: baseLabel,
+            detail: `${hk}–${ak} · aștept final (1X — gazda nu pierde)`,
+            ratio: 0.5,
             status: "pending",
           });
         else {
@@ -293,9 +307,9 @@ export function deriveLiveProgressRows(
           rows.push({
             id,
             label: baseLabel,
-            detail: `${hk}–${ak}${ok ? " ✓" : finished ? " ✕" : " · în curs"}`,
-            ratio: ok ? 1 : finished ? 0 : hk === ak ? 0.52 : hk > ak ? 0.85 : 0.15,
-            status: ok ? "complete" : finished ? "failed" : "pending",
+            detail: "",
+            ratio: ok ? 1 : 0.5,
+            status: ok ? "complete" : "failed",
           });
         }
         break;
@@ -306,7 +320,15 @@ export function deriveLiveProgressRows(
             id,
             label: baseLabel,
             detail: "X2",
-            ratio: null,
+            ratio: 0.5,
+            status: "pending",
+          });
+        else if (!finished)
+          rows.push({
+            id,
+            label: baseLabel,
+            detail: `${hk}–${ak} · aștept final (X2 — oaspeții nu pierd)`,
+            ratio: 0.5,
             status: "pending",
           });
         else {
@@ -314,9 +336,9 @@ export function deriveLiveProgressRows(
           rows.push({
             id,
             label: baseLabel,
-            detail: `${hk}–${ak}${ok ? " ✓" : finished ? " ✕" : " · în curs"}`,
-            ratio: ok ? 1 : finished ? 0 : hk === ak ? 0.52 : ak > hk ? 0.85 : 0.15,
-            status: ok ? "complete" : finished ? "failed" : "pending",
+            detail: "",
+            ratio: ok ? 1 : 0.5,
+            status: ok ? "complete" : "failed",
           });
         }
         break;
@@ -327,7 +349,7 @@ export function deriveLiveProgressRows(
             id,
             label: baseLabel,
             detail: "12 — rezultat la final",
-            ratio: null,
+            ratio: 0.5,
             status: "pending",
           });
         else if (!finished)
@@ -335,7 +357,7 @@ export function deriveLiveProgressRows(
             id,
             label: baseLabel,
             detail: `${hk}–${ak} · aștept final (fără egal la fluier)`,
-            ratio: hk === ak ? 0.4 : 0.72,
+            ratio: 0.5,
             status: "pending",
           });
         else {
@@ -343,8 +365,8 @@ export function deriveLiveProgressRows(
           rows.push({
             id,
             label: baseLabel,
-            detail: `${hk}–${ak}${ok ? " ✓" : " ✕ egal"}`,
-            ratio: ok ? 1 : 0,
+            detail: "",
+            ratio: ok ? 1 : 0.5,
             status: ok ? "complete" : "failed",
           });
         }
@@ -354,8 +376,9 @@ export function deriveLiveProgressRows(
         rows.push({
           id,
           label: baseLabel,
-          detail: fixture.bucket === "live" ? "În curs" : "În monitorizare",
-          ratio: null,
+          detail: "",
+          /** Piețe tip rezultat necunoscute în motor — același neutral ca șanse duble până avem logică dedicată. */
+          ratio: 0.5,
           status: "pending",
         });
     }

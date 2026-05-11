@@ -1,8 +1,16 @@
 "use client";
 
 import { motion, useReducedMotion } from "framer-motion";
-import { CircleMinus, Lock, Timer } from "lucide-react";
-import { memo, useMemo } from "react";
+import {
+  ChevronDown,
+  CircleMinus,
+  FileText,
+  ListChecks,
+  Lock,
+  Timer,
+  TrendingUp,
+} from "lucide-react";
+import { memo, useId, useMemo, useState } from "react";
 import { combinedDecimalFromPicks } from "@/lib/predictions/combined-odds";
 import type { PredictionPublicTeaser } from "@/lib/predictions/teaser-utils";
 import type {
@@ -11,13 +19,13 @@ import type {
 } from "@/lib/predictions/types";
 import {
   deriveComboVisualSettlement,
-  evaluatePickResult,
   marketDisplayRo,
   predictionPickLineRo,
 } from "@/lib/predictions/pick-result";
 import { deriveLiveProgressRows } from "@/lib/predictions/live-progress";
 import type { LiveProgressRow } from "@/lib/predictions/live-progress";
 import { liveTotalsFromFixture } from "@/lib/football-api/fixture-live-stats";
+import { liveFixtureClockLabel } from "@/lib/football-api/live-clock-display";
 import type { NormalizedFixture } from "@/lib/football-api/types";
 import { withoutLegacyProbixBookmakerDisclaimer } from "@/lib/probix-engine/explanations-ro";
 import { LiveBadge, LIVE_BADGE_TEXT_CLASS } from "@/components/ds/live-badge";
@@ -32,6 +40,17 @@ const LIVE_STATUS_PULSE = "animate-pulse motion-reduce:animate-none";
 
 /** Ritm vertical între zonele cardului (~8–10px). */
 const SECTION_GAP = "gap-2.5";
+
+/** Interior „Progres combinație” din hero (`landing-hero-dashboard`). */
+const HERO_PREDICTION_INNER =
+  "rounded-xl border border-border/50 bg-background-secondary/40 p-4";
+
+/** Aliniere ca `FixtureRow` (Meciuri): minut centru, LIVE dreapta, deasupra rândului scor. */
+const MATCH_STATUS_ROW =
+  "flex min-w-0 items-center gap-x-2 sm:gap-x-4";
+const MATCH_SIDE = "flex min-w-0 min-h-0 flex-1";
+const MATCH_MID =
+  "w-[4.25rem] shrink-0 flex-none px-1 sm:w-20";
 
 const UPCOMING_AWAITING_MESSAGE =
   "Predicția pentru acest meci este generată automat cu aproximativ 10 minute înainte de start.";
@@ -88,33 +107,12 @@ function resolvePredictionStatusLabel(params: {
   return "În evaluare";
 }
 
-/** Colț dreapta sus: LIVE (prioritar) sau status combinație - mărit pentru lizibilitate. */
+/** Colț dreapta sus: status combinație (live: minut + badge sunt deasupra scorului). */
 function CardTopStatus({
-  fixture,
   predictionStatusLabel,
 }: {
-  fixture: NormalizedFixture;
   predictionStatusLabel: string | null;
 }) {
-  if (fixture.bucket === "live") {
-    return (
-      <span className="inline-flex flex-wrap items-center justify-end gap-x-2 gap-y-1">
-        {fixture.minute != null ? (
-          <span
-            className={cn(
-              LIVE_BADGE_TEXT_CLASS,
-              "tabular-nums text-destructive",
-              LIVE_STATUS_PULSE,
-            )}
-          >
-            {fixture.minute}′
-          </span>
-        ) : null}
-        <LiveBadge className={LIVE_STATUS_PULSE} />
-      </span>
-    );
-  }
-
   if (!predictionStatusLabel) return null;
 
   const low = predictionStatusLabel.toLowerCase();
@@ -141,31 +139,45 @@ function CardTopStatus({
   );
 }
 
-/** Un rând: stânga cotă combinată; dreapta încredere model (aceleași surse ca înainte). */
+/** Etichete tip grid stat din hero landing. */
+const HERO_STAT_LABEL =
+  "break-words text-[10px] font-medium uppercase leading-tight tracking-wide text-foreground-muted";
+
+/** Un rând: stânga cotă combinată; dreapta încredere (aceleași surse ca înainte). */
 function CotaIncredereRow({
   combined,
   probPct,
   reduceMotion,
+  visual = "card",
 }: {
   combined: number | null;
   probPct: number | null;
   reduceMotion: boolean | null;
+  /** `hero` — tipografie ca în hero (font mono, etichete mici). */
+  visual?: "card" | "hero";
 }) {
   const p =
     probPct != null
       ? Math.min(100, Math.max(0, Math.round(probPct)))
       : null;
 
+  const hero = visual === "hero";
+  const valueClass = hero
+    ? "mt-1 font-mono text-2xl font-semibold tabular-nums tracking-tight text-foreground sm:text-[1.65rem]"
+    : "mt-1.5 text-3xl font-semibold tabular-nums tracking-tight text-foreground";
+  const labelClass = hero ? HERO_STAT_LABEL : "text-[11px] font-medium uppercase tracking-wider text-foreground/70";
+  const wrapClass = hero
+    ? "min-w-0 border-t border-border/50 pt-3 mt-3"
+    : "min-w-0 border-t border-border/40 pt-2.5";
+
   return (
-    <div className="min-w-0 border-t border-border/40 pt-2.5">
+    <div className={wrapClass}>
       <div className="flex flex-wrap items-start justify-between gap-x-6 gap-y-3">
         <div className="min-w-0 flex-1">
-          <p className="text-[11px] font-medium uppercase tracking-wider text-foreground/70">
-            Cotă
-          </p>
+          <p className={labelClass}>Cotă</p>
           {combined != null ? (
             <motion.p
-              className="mt-1.5 text-3xl font-semibold tabular-nums tracking-tight text-foreground"
+              className={valueClass}
               initial={reduceMotion ? false : { opacity: 0.94 }}
               animate={{ opacity: 1 }}
               transition={{ duration: 0.3 }}
@@ -174,47 +186,44 @@ function CotaIncredereRow({
               {combined.toFixed(2)}
             </motion.p>
           ) : (
-            <p className="mt-1.5 max-w-[16rem] text-[13px] leading-relaxed text-foreground/75">
+            <p
+              className={cn(
+                "max-w-[16rem] leading-relaxed text-foreground/75",
+                hero ? "mt-1 text-[13px]" : "mt-1.5 text-[13px]",
+              )}
+            >
               Cotă combinată indisponibilă pentru acest set.
             </p>
           )}
         </div>
 
         <div className="flex min-w-[7rem] shrink-0 flex-col items-end text-right sm:min-w-[8.75rem]">
-          <p className="text-[11px] font-medium uppercase tracking-wider text-foreground/70">
-            Încredere model
-          </p>
+          <p className={labelClass}>Încredere</p>
           {p != null ? (
-            <>
-              <motion.p
-                className="mt-1.5 text-3xl font-semibold tabular-nums tracking-tight text-foreground"
-                initial={reduceMotion ? false : { opacity: 0.94 }}
-                animate={{ opacity: 1 }}
-                transition={{ duration: 0.3 }}
-                aria-label={`Încredere model ${p} procente`}
+            <motion.p
+              className={valueClass}
+              initial={reduceMotion ? false : { opacity: 0.94 }}
+              animate={{ opacity: 1 }}
+              transition={{ duration: 0.3 }}
+              aria-label={`Încredere ${p} procente`}
+            >
+              {p}
+              <span
+                className={cn(
+                  "ml-0.5 font-medium text-foreground-secondary",
+                  hero ? "text-base" : "text-lg",
+                )}
               >
-                {p}
-                <span className="ml-0.5 text-lg font-medium text-foreground-secondary">
-                  %
-                </span>
-              </motion.p>
-              <div
-                className="mt-2 h-[3px] w-full max-w-[9rem] overflow-hidden rounded-full bg-foreground/[0.06]"
-                role="presentation"
-              >
-                <motion.div
-                  className="h-full rounded-full bg-primary/45"
-                  initial={reduceMotion ? false : { width: "0%" }}
-                  animate={{ width: `${p}%` }}
-                  transition={{
-                    duration: reduceMotion ? 0 : 0.65,
-                    ease: [0.22, 0.61, 0.36, 1],
-                  }}
-                />
-              </div>
-            </>
+                %
+              </span>
+            </motion.p>
           ) : (
-            <p className="mt-1.5 max-w-[11rem] text-[13px] leading-relaxed text-foreground/75">
+            <p
+              className={cn(
+                "max-w-[11rem] leading-relaxed text-foreground/75",
+                hero ? "mt-1 text-[13px]" : "mt-1.5 text-[13px]",
+              )}
+            >
               Indisponibilă.
             </p>
           )}
@@ -224,83 +233,193 @@ function CotaIncredereRow({
   );
 }
 
+/** Procent umplere bară: mereu vizibil (min. subțire), 100% la îndeplinire, animabil la update-uri. */
+const PROGRESS_BAR_MIN_PCT = 5;
+
+function progressBarFillPercent(row: LiveProgressRow): number {
+  if (row.status === "complete") return 100;
+  if (row.status === "failed") {
+    const r =
+      row.ratio != null
+        ? Math.round(Math.min(1, Math.max(0, row.ratio)) * 100)
+        : 0;
+    return Math.max(PROGRESS_BAR_MIN_PCT, r);
+  }
+  if (row.status === "awaiting_data" || row.ratio == null) {
+    return PROGRESS_BAR_MIN_PCT + 3;
+  }
+  const r = Math.round(Math.min(1, Math.max(0, row.ratio)) * 100);
+  return Math.max(PROGRESS_BAR_MIN_PCT, Math.min(99, r));
+}
+
+function progressStatusLabel(row: LiveProgressRow) {
+  switch (row.status) {
+    case "complete":
+      return (
+        <span className="flex shrink-0 items-center gap-1.5 font-medium text-success">
+          <span className="text-base leading-none">✓</span>
+          îndeplinită
+        </span>
+      );
+    case "failed":
+      return (
+        <span className="flex shrink-0 items-center gap-1.5 font-medium text-red-400/90">
+          <span className="text-base leading-none">✕</span>
+          neîndeplinită
+        </span>
+      );
+    case "awaiting_data":
+      return (
+        <span className="shrink-0 font-medium text-foreground-muted">
+          aștept date
+        </span>
+      );
+    default:
+      return (
+        <span className="shrink-0 font-medium text-foreground-muted">
+          în curs
+        </span>
+      );
+  }
+}
+
 function ComboProgressStrip({ rows }: { rows: LiveProgressRow[] }) {
   const rm = useReducedMotion();
   if (!rows.length) return null;
 
   return (
     <section
-      className="rounded-xl border border-border/50 bg-[rgba(255,255,255,0.02)] px-2.5 py-2 sm:px-3 sm:py-2.5"
+      className={HERO_PREDICTION_INNER}
       aria-label="Progres predicție față de evenimente live"
     >
-      <p className="text-[11px] font-medium uppercase tracking-wider text-foreground-muted/85">
-        Progres selecții
-      </p>
-      <ul className="mt-2 flex flex-col gap-2">
+      <div className="flex items-center justify-between gap-2">
+        <p className="min-w-0 truncate text-[11px] font-medium uppercase tracking-wider text-foreground/70">
+          Progres selecții
+        </p>
+        <ListChecks className="size-4 shrink-0 text-primary/80" aria-hidden />
+      </div>
+      <ul className="mt-3 space-y-2.5">
         {rows.map((row) => {
-          const pct =
-            row.ratio != null
-              ? Math.round(Math.min(1, Math.max(0, row.ratio)) * 100)
-              : null;
-          const done = row.status === "complete";
+          const pct = progressBarFillPercent(row);
           const fail = row.status === "failed";
           const wait = row.status === "awaiting_data";
-          const fill = done
-            ? "bg-emerald-400/40"
-            : fail
-              ? "bg-red-400/38"
-              : wait
-                ? "bg-amber-400/32"
-                : "bg-primary/38";
+          const fill = fail
+            ? "bg-red-400/45"
+            : wait
+              ? "bg-amber-400/40"
+              : "bg-gradient-to-r from-primary/80 to-probix-purple/70";
+          const showDetail = row.detail.trim().length > 0;
 
           return (
-            <li key={row.id} className="min-w-0 space-y-1">
-              <div className="flex items-start justify-between gap-3">
-                <div className="min-w-0">
-                  <p className="text-sm font-medium tracking-tight text-foreground">
-                    {row.label}
-                  </p>
-                  <p className="mt-0.5 text-[13px] leading-relaxed text-foreground/82">
-                    {row.detail}
-                  </p>
-                </div>
-                <span
-                  className={cn(
-                    "shrink-0 pt-0.5 text-xs tabular-nums",
-                    done && "text-emerald-300/85",
-                    fail && "text-red-300/82",
-                    !done && !fail && "text-foreground-muted/50",
-                  )}
-                  aria-hidden
-                >
-                  {done ? "✓" : fail ? "✕" : wait ? "…" : "○"}
+            <li key={row.id} className="min-w-0 space-y-2">
+              <div className="flex flex-wrap items-center justify-between gap-x-2 gap-y-1 text-[13px]">
+                <span className="min-w-0 flex-1 text-foreground-secondary">
+                  {row.label}
                 </span>
+                {progressStatusLabel(row)}
               </div>
-              <div className="h-0.5 w-full overflow-hidden rounded-full bg-border/50">
-                {pct != null ? (
-                  <motion.div
-                    className={cn("h-full rounded-full", fill)}
-                    initial={rm ? false : { width: "0%" }}
-                    animate={{ width: `${pct}%` }}
-                    transition={
-                      rm
-                        ? { duration: 0 }
-                        : { type: "spring", damping: 42, stiffness: 300 }
-                    }
-                  />
-                ) : (
-                  <div
-                    className={cn(
-                      "h-full w-[12%] rounded-full opacity-40",
-                      wait ? "bg-amber-400/25" : "bg-primary/20",
-                    )}
-                  />
-                )}
+              {showDetail ? (
+                <p className="text-[13px] leading-relaxed text-foreground-muted">
+                  {row.detail}
+                </p>
+              ) : null}
+              <div className="h-1.5 w-full overflow-hidden rounded-full bg-muted/60">
+                <motion.div
+                  className={cn("h-full rounded-full", fill)}
+                  initial={rm ? false : { width: "0%" }}
+                  animate={{ width: `${pct}%` }}
+                  transition={
+                    rm
+                      ? { duration: 0 }
+                      : { type: "spring", damping: 42, stiffness: 300 }
+                  }
+                />
               </div>
             </li>
           );
         })}
       </ul>
+    </section>
+  );
+}
+
+/** Analiză — același chenar ca Predicție / Progres selecții; implicit pliată, listă completă la extindere. */
+function PredictionCardAnaliza({ bullets }: { bullets: string[] }) {
+  const [open, setOpen] = useState(false);
+  const listId = useId();
+
+  const headerRow = (
+    <>
+      <p className="min-w-0 truncate text-[11px] font-medium uppercase tracking-wider text-foreground/70">
+        Analiză
+      </p>
+      <span className="flex shrink-0 items-center gap-1.5" aria-hidden>
+        <FileText className="size-4 text-primary/80" />
+        <ChevronDown
+          className={cn(
+            "size-4 text-foreground-muted transition-transform duration-200",
+            open && "rotate-180",
+          )}
+        />
+      </span>
+    </>
+  );
+
+  const toggleClasses =
+    "w-full min-w-0 rounded-md text-left outline-none ring-offset-background transition-colors hover:bg-muted/25 focus-visible:ring-2 focus-visible:ring-primary/35 cursor-pointer";
+
+  return (
+    <section
+      className={cn(
+        HERO_PREDICTION_INNER,
+        open && "cursor-pointer transition-colors hover:bg-muted/15",
+      )}
+      aria-label="Analiză Probix"
+      onClick={open ? () => setOpen(false) : undefined}
+    >
+      {!open ? (
+        <button
+          type="button"
+          className={cn(toggleClasses, "flex flex-col gap-0")}
+          onClick={() => setOpen(true)}
+          aria-expanded={false}
+          aria-controls={listId}
+          aria-label="Extinde analiza"
+        >
+          <div className="flex min-w-0 items-center justify-between gap-2 py-0.5">
+            {headerRow}
+          </div>
+          <p className="mt-2 text-[13px] leading-relaxed text-foreground-muted">
+            Extinde pentru a citi analiza completă (
+            {bullets.length}{" "}
+            {bullets.length === 1 ? "punct" : "puncte"}).
+          </p>
+        </button>
+      ) : (
+        <>
+          <button
+            type="button"
+            className={cn(
+              toggleClasses,
+              "flex min-w-0 items-center justify-between gap-2 py-2 sm:py-2.5",
+            )}
+            onClick={() => setOpen(false)}
+            aria-expanded={true}
+            aria-controls={listId}
+            aria-label="Restrânge analiza"
+          >
+            {headerRow}
+          </button>
+          <ul
+            id={listId}
+            className="mt-1 list-outside list-disc space-y-2.5 pl-5 text-[13px] leading-relaxed text-foreground-secondary marker:text-foreground-muted/90 select-text [&>li]:text-pretty"
+          >
+            {bullets.map((line, ix) => (
+              <li key={`analiza-${ix}-${line.slice(0, 72)}`}>{line}</li>
+            ))}
+          </ul>
+        </>
+      )}
     </section>
   );
 }
@@ -313,6 +432,8 @@ const PredictionCardInner = ({
 }: PredictionCardProps) => {
   const reduceMotion = useReducedMotion();
   const sc = useMemo(() => scoreLine(fixture), [fixture]);
+  const liveClockLabel =
+    fixture.bucket === "live" ? liveFixtureClockLabel(fixture) : null;
 
   const combined =
     prediction?.estimatedCombinedDecimal ??
@@ -366,6 +487,9 @@ const PredictionCardInner = ({
 
   const showPredictionLock = !fullPredictionReveal;
   const hasTeaserOutline = Boolean(teaser) && showPredictionLock;
+  /** Vizitator neautentificat la meci live: fără teaser cote / fără chenar „autentificare necesară”. */
+  const lockedLiveGuest =
+    showPredictionLock && fixture.bucket === "live";
 
   const metaTime =
     fullPredictionReveal && prediction?.generatedAt ? (
@@ -400,11 +524,9 @@ const PredictionCardInner = ({
     fullPredictionReveal &&
     !prediction?.picks?.length;
 
-  const analysisBulletsShown =
+  const analysisBullets =
     prediction?.explanationBullets?.length ?
-      withoutLegacyProbixBookmakerDisclaimer(
-        prediction.explanationBullets,
-      ).slice(0, 5)
+      withoutLegacyProbixBookmakerDisclaimer(prediction.explanationBullets)
     : [];
 
   /** Același limbaj vizual ca „Analiză” / teaser — fără chenar gradient suplimentar în card. */
@@ -445,41 +567,88 @@ const PredictionCardInner = ({
           )}
         </div>
         <div className="flex shrink-0 flex-wrap items-center justify-end gap-2">
-          <CardTopStatus
-            fixture={fixture}
-            predictionStatusLabel={predictionStatusLabel}
-          />
+          {fixture.bucket === "live" ? (
+            <LiveBadge className={LIVE_STATUS_PULSE} />
+          ) : (
+            <CardTopStatus predictionStatusLabel={predictionStatusLabel} />
+          )}
         </div>
       </div>
 
       <div className="h-px w-full bg-border/35" aria-hidden />
 
-      {/* 2 · MATCH CENTER - fără chenar; separator după echipe */}
+      {/* 2 · MATCH CENTER - live: minut + LIVE deasupra scorului (ca Meciuri); separator după echipe */}
       <section className="min-w-0" aria-label="Meci">
         <div className="mx-auto w-full max-w-lg py-2 sm:py-2.5">
-          <MatchTeamsScoreRow
-            homeName={fixture.homeName}
-            awayName={fixture.awayName}
-            homeLogo={fixture.homeLogo}
-            awayLogo={fixture.awayLogo}
-            center={
-              <>
-                <span className="min-w-[1.25rem] text-center text-lg font-semibold leading-none tabular-nums text-foreground">
-                  {sc.home}
-                </span>
-                <span className="text-foreground-muted">:</span>
-                <span className="min-w-[1.25rem] text-center text-lg font-semibold leading-none tabular-nums text-foreground">
-                  {sc.away}
-                </span>
-              </>
-            }
-          />
+          {fixture.bucket === "live" ? (
+            <div className="flex flex-col gap-y-2">
+              <div className={MATCH_STATUS_ROW}>
+                <div aria-hidden className={cn(MATCH_SIDE, "min-h-7")} />
+                <div
+                  className={cn(
+                    MATCH_MID,
+                    "flex min-h-7 flex-col items-center justify-center",
+                  )}
+                >
+                  {liveClockLabel ? (
+                    <span
+                      className={cn(
+                        "block text-center text-xs font-medium text-destructive",
+                        liveClockLabel.endsWith("′")
+                          ? "tabular-nums"
+                          : "tracking-tight",
+                        LIVE_STATUS_PULSE,
+                      )}
+                    >
+                      {liveClockLabel}
+                    </span>
+                  ) : null}
+                </div>
+                <div aria-hidden className={cn(MATCH_SIDE, "min-h-7")} />
+              </div>
+              <MatchTeamsScoreRow
+                homeName={fixture.homeName}
+                awayName={fixture.awayName}
+                homeLogo={fixture.homeLogo}
+                awayLogo={fixture.awayLogo}
+                center={
+                  <>
+                    <span className="min-w-[1.25rem] text-center text-lg font-semibold leading-none tabular-nums text-foreground">
+                      {sc.home}
+                    </span>
+                    <span className="text-foreground-muted">:</span>
+                    <span className="min-w-[1.25rem] text-center text-lg font-semibold leading-none tabular-nums text-foreground">
+                      {sc.away}
+                    </span>
+                  </>
+                }
+              />
+            </div>
+          ) : (
+            <MatchTeamsScoreRow
+              homeName={fixture.homeName}
+              awayName={fixture.awayName}
+              homeLogo={fixture.homeLogo}
+              awayLogo={fixture.awayLogo}
+              center={
+                <>
+                  <span className="min-w-[1.25rem] text-center text-lg font-semibold leading-none tabular-nums text-foreground">
+                    {sc.home}
+                  </span>
+                  <span className="text-foreground-muted">:</span>
+                  <span className="min-w-[1.25rem] text-center text-lg font-semibold leading-none tabular-nums text-foreground">
+                    {sc.away}
+                  </span>
+                </>
+              }
+            />
+          )}
         </div>
       </section>
 
       <div className="h-px w-full bg-border/35" aria-hidden />
 
-      {showPredictionLock && hasTeaserOutline ? (
+      {showPredictionLock && hasTeaserOutline && !lockedLiveGuest ? (
         <div className="rounded-xl border border-border/45 bg-muted/15 px-3 py-2 sm:px-3.5">
           <div className="flex flex-wrap items-baseline gap-x-3 gap-y-1 text-[13px] text-foreground/88">
             {teaserConf != null ? (
@@ -506,19 +675,45 @@ const PredictionCardInner = ({
         <PredictionCardLiveMetrics fixture={fixture} />
       ) : null}
 
-      {/* 3 · PREDICȚIE - strat inteligență; starea „publicare în curând” folosește același chip ca restul cardului */}
-      <section
-        className={cn(
-          "relative isolate min-w-0 overflow-hidden",
-          upcomingAwaitingIntel
-            ? "rounded-xl border border-border/40 bg-muted/10"
-            : [
-                "rounded-2xl border border-white/[0.09]",
-                "bg-gradient-to-br from-muted/[0.28] via-background/55 to-muted/[0.14]",
-                "shadow-[inset_0_1px_0_rgba(255,255,255,0.05),0_12px_36px_-20px_rgba(0,0,0,0.55)]",
-              ],
-        )}
-      >
+      {/* 3 · PREDICȚIE — vizitator la live: doar mesaj autentificare (fără teaser / blur picioare) */}
+      {lockedLiveGuest ? (
+        <section
+          className={cn(
+            "relative isolate min-w-0 overflow-hidden",
+            "rounded-2xl border border-white/[0.09]",
+            "bg-gradient-to-br from-muted/[0.28] via-background/55 to-muted/[0.14]",
+            "shadow-[inset_0_1px_0_rgba(255,255,255,0.05),0_12px_36px_-20px_rgba(0,0,0,0.55)]",
+          )}
+        >
+          <div className="mx-auto flex max-w-[22rem] flex-col items-center gap-3 px-4 py-6 text-center sm:px-5 sm:py-7 md:py-8">
+            <div
+              className="flex size-12 shrink-0 items-center justify-center rounded-2xl border border-border/55 bg-muted/25 text-primary"
+              aria-hidden
+            >
+              <Lock className="size-6" strokeWidth={1.75} />
+            </div>
+            <p className="text-pretty text-sm leading-relaxed text-foreground-secondary">
+              Este necesară{" "}
+              <span className="font-semibold text-foreground/90">autentificarea</span> pentru a vedea
+              selecțiile complete la meciurile în curs sau înainte de fluierul de final.
+            </p>
+          </div>
+        </section>
+      ) : (
+        <section
+          className={cn(
+            "relative isolate min-w-0 overflow-hidden",
+            showPredictionBody
+              ? HERO_PREDICTION_INNER
+              : upcomingAwaitingIntel
+                ? "rounded-xl border border-border/40 bg-muted/10"
+                : [
+                    "rounded-2xl border border-white/[0.09]",
+                    "bg-gradient-to-br from-muted/[0.28] via-background/55 to-muted/[0.14]",
+                    "shadow-[inset_0_1px_0_rgba(255,255,255,0.05),0_12px_36px_-20px_rgba(0,0,0,0.55)]",
+                  ],
+          )}
+        >
         {showPredictionLock ? (
           <div className="relative overflow-hidden px-4 py-6 sm:px-5 sm:py-7 md:py-8">
             <div className="pointer-events-none select-none blur-xl" aria-hidden>
@@ -592,7 +787,7 @@ const PredictionCardInner = ({
                     </div>
                     <div className="text-right">
                       <p className="text-[11px] font-medium uppercase tracking-wider text-foreground/65">
-                        Încredere model
+                        Încredere
                       </p>
                       <p className="mt-1.5 font-medium tabular-nums text-[13px] text-foreground/75">
                         —
@@ -629,60 +824,26 @@ const PredictionCardInner = ({
           </div>
         ) : (
           showPredictionBody && (
-            <div className="flex flex-col px-4 py-3.5 sm:px-5 sm:py-4">
-              <p className="text-[11px] font-medium uppercase tracking-wider text-foreground/70">
-                Predicție
-              </p>
-              <ul className="mt-2.5 flex min-w-0 flex-col divide-y divide-border/35">
+            <>
+              <div className="flex items-center justify-between gap-2">
+                <p className="min-w-0 truncate text-[11px] font-medium uppercase tracking-wider text-foreground/70">
+                  Predicție
+                </p>
+                <TrendingUp
+                  className="size-4 shrink-0 text-primary/80"
+                  aria-hidden
+                />
+              </div>
+              <ul className="mt-3 space-y-2.5">
                 {prediction!.picks!.map((p, i) => {
-                  const res = evaluatePickResult(
-                    fixture,
-                    p,
-                    derivedLiveTotals,
-                  );
                   const ro = marketDisplayRo(p);
                   const pickLine = predictionPickLineRo(p);
-                  const mark =
-                    res === "won"
-                      ? "✓"
-                      : res === "lost"
-                        ? "✕"
-                        : res === "void"
-                          ? "-"
-                          : "○";
-                  const tone =
-                    res === "won"
-                      ? "text-emerald-300/90"
-                      : res === "lost"
-                        ? "text-red-300/85"
-                        : "text-foreground-muted/45";
-                  const statusAria =
-                    res === "won"
-                      ? "Îndeplinită"
-                      : res === "lost"
-                        ? "Neîndeplinită"
-                        : res === "void"
-                          ? "Anulată"
-                          : "În evaluare";
-
                   return (
                     <li
                       key={`${p.marketId ?? ro.market}-${i}`}
-                      className="flex items-center gap-3 py-2 first:pt-1"
-                      aria-label={`${pickLine}. ${statusAria}.`}
+                      className="text-[13px] text-foreground-secondary"
                     >
-                      <span
-                        className={cn(
-                          "flex size-[1.375rem] shrink-0 items-center justify-center rounded-md border border-border/50 text-xs font-semibold tabular-nums",
-                          tone,
-                        )}
-                        aria-hidden
-                      >
-                        {mark}
-                      </span>
-                      <p className="min-w-0 flex-1 text-[15px] font-medium leading-snug tracking-tight text-foreground">
-                        {pickLine}
-                      </p>
+                      {pickLine}
                     </li>
                   );
                 })}
@@ -692,11 +853,13 @@ const PredictionCardInner = ({
                 combined={combined}
                 probPct={probPct}
                 reduceMotion={reduceMotion}
+                visual="hero"
               />
-            </div>
+            </>
           )
         )}
       </section>
+      )}
 
       {!showPredictionLock && progressRows.length > 0 ? (
         <ComboProgressStrip rows={progressRows} />
@@ -704,20 +867,11 @@ const PredictionCardInner = ({
 
       {!showPredictionLock &&
       !hideIntelForUpcomingAwaiting &&
-      analysisBulletsShown.length ? (
-        <section className="rounded-xl border border-border/40 bg-muted/10 px-2.5 py-2 sm:px-3 sm:py-2.5">
-          <p className="text-[11px] font-medium uppercase tracking-wider text-foreground/70">
-            Analiză
-          </p>
-          <ul className="mt-1.5 space-y-1.5 text-[13px] leading-relaxed text-foreground/88 [&>li]:max-w-prose [&>li]:text-pretty">
-            {analysisBulletsShown.map((line, ix) => (
-              <li key={`${ix}-${line.slice(0, 48)}`}>{line}</li>
-            ))}
-          </ul>
-        </section>
+      analysisBullets.length > 0 ? (
+        <PredictionCardAnaliza bullets={analysisBullets} />
       ) : null}
 
-      {showPredictionLock && teaser ? (
+      {showPredictionLock && teaser && !lockedLiveGuest ? (
         <div className="relative overflow-hidden rounded-xl border border-border/40 px-2.5 py-2">
           <div className="blur-md select-none" aria-hidden>
             <p className="text-[13px] leading-relaxed text-foreground-secondary">

@@ -1,5 +1,6 @@
 import Image from "next/image";
 import { LiveBadge } from "@/components/ds/live-badge";
+import { liveFixtureClockLabel } from "@/lib/football-api/live-clock-display";
 import type { NormalizedFixture } from "@/lib/football-api/types";
 import { cn } from "@/lib/utils";
 
@@ -70,7 +71,7 @@ export function FixtureRow({
 }) {
   const sc = scoreLine(f);
   const live = f.bucket === "live";
-  const minute = live && f.minute != null ? `${f.minute}′` : null;
+  const clockLabel = liveFixtureClockLabel(f);
 
   return (
     <div
@@ -94,14 +95,17 @@ export function FixtureRow({
         <div className={MATCH_ROW}>
           <div aria-hidden className={cn(SIDE, "min-h-7")} />
           <div className={cn(MID_W, "relative flex min-h-7 flex-col items-center justify-center")}>
-            {minute ? (
+            {clockLabel ? (
               <span
                 className={cn(
-                  "block text-center text-xs font-medium tabular-nums text-destructive",
+                  "block text-center text-xs font-medium text-destructive",
+                  clockLabel.endsWith("′")
+                    ? "tabular-nums"
+                    : "tracking-tight",
                   LIVE_STATUS_PULSE,
                 )}
               >
-                {minute}
+                {clockLabel}
               </span>
             ) : null}
           </div>

@@ -95,13 +95,16 @@ export function evaluatePickResult(
       if (h >= 1 && a >= 1) return "lost";
       return finished ? "won" : "pending";
     }
+    /** Șanse duble: rezultatul se validează doar la fluier (0–0 nu înseamnă 1X/X2 „câștigate” în timpul meciului). */
     case "dc_1x": {
       if (h == null || a == null) return "pending";
-      return h >= a ? "won" : finished ? "lost" : "pending";
+      if (!finished) return "pending";
+      return h >= a ? "won" : "lost";
     }
     case "dc_x2": {
       if (h == null || a == null) return "pending";
-      return a >= h ? "won" : finished ? "lost" : "pending";
+      if (!finished) return "pending";
+      return a >= h ? "won" : "lost";
     }
     case "dc_12": {
       if (h == null || a == null) return "pending";

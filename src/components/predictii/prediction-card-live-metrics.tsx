@@ -7,25 +7,80 @@ import type {
   NormalizedFixture,
 } from "@/lib/football-api/types";
 
-function formatPairDisplay(
-  home: number | null,
-  away: number | null,
-): string {
-  if (home == null && away == null) return "- · -";
-  return `${home ?? "-"} · ${away ?? "-"}`;
+/** Aceeași înălțime / fundal ca bara din hero (`landing-hero-dashboard`). */
+const BAR_TRACK = "h-1.5 w-full overflow-hidden rounded-full bg-muted/60";
+const BAR_HOME =
+  "h-full shrink-0 rounded-l-full bg-gradient-to-r from-primary/80 to-probix-purple/70";
+const BAR_AWAY = "h-full shrink-0 rounded-r-full bg-sky-400/25";
+
+type RowSpec = {
+  key: keyof FixtureTeamLiveNumbers;
+  label: string;
+  kind: "count" | "possession";
+};
+
+/** Rânduri ascunse dacă API nu trimite deloc câmpul (evităm 0–0 înșelător). */
+const COUNT_STATS_REQUIRE_API: (keyof FixtureTeamLiveNumbers)[] = [
+  "dangerousAttacks",
+  "redCards",
+];
+
+/**
+ * Ordine fixă — mapare `/fixtures/statistics`.
+ * „Ocazii mari” / „Cartonașe roșii” doar dacă există valoare numerică de la API pentru cel puțin o echipă.
+ */
+const STAT_ROWS: RowSpec[] = [
+  { key: "possessionPct", label: "Posesie", kind: "possession" },
+  { key: "shotsTotal", label: "Șuturi (total)", kind: "count" },
+  { key: "shotsOnGoal", label: "Șuturi pe poartă", kind: "count" },
+  { key: "dangerousAttacks", label: "Ocazii mari", kind: "count" },
+  { key: "corners", label: "Cornere", kind: "count" },
+  { key: "fouls", label: "Faulturi", kind: "count" },
+  { key: "yellowCards", label: "Cartonașe galbene", kind: "count" },
+  { key: "redCards", label: "Cartonașe roșii", kind: "count" },
+];
+
+function numFromSide(v: number | null | undefined): number {
+  if (typeof v === "number" && Number.isFinite(v)) return Math.max(0, v);
+  return 0;
 }
 
-function formatPossessionDisplay(
-  home: number | null,
-  away: number | null,
-): string {
-  if (home == null && away == null) return "- · -";
-  const h = home != null ? `${Math.round(home)}%` : "-";
-  const a = away != null ? `${Math.round(away)}%` : "-";
-  return `${h} · ${a}`;
+/** Cel puțin o parte are valoare numerică din API (nu lipsă completă a câmpului). */
+function hasNumericStatPair(
+  s: FixtureLiveStatsSplit,
+  key: keyof FixtureTeamLiveNumbers,
+): boolean {
+  const hv = s.home[key];
+  const av = s.away[key];
+  return (
+    (typeof hv === "number" && Number.isFinite(hv)) ||
+    (typeof av === "number" && Number.isFinite(av))
+  );
 }
 
-function ThinBar({
+function pairNums(
+  s: FixtureLiveStatsSplit,
+  key: keyof FixtureTeamLiveNumbers,
+): { h: number; a: number } {
+  return {
+    h: numFromSide(s.home[key]),
+    a: numFromSide(s.away[key]),
+  };
+}
+
+function formatCell(n: number, kind: "count" | "possession"): string {
+  if (kind === "possession") return `${Math.round(n)}%`;
+  return `${Math.round(n)}`;
+}
+
+/** `null` dacă ambele sunt 0 — afișăm doar pista neutră, fără segmente false 50/50. */
+function leftSharePct(home: number, away: number): number | null {
+  const t = home + away;
+  if (t <= 0) return null;
+  return Math.min(100, Math.max(0, (home / t) * 100));
+}
+
+function DualTeamBar({
   home,
   away,
   reduceMotion,
@@ -34,97 +89,76 @@ function ThinBar({
   away: number;
   reduceMotion: boolean | null;
 }) {
-  const tot = Math.max(1e-9, home + away);
-  const leftPct = (home / tot) * 100;
+  const leftPct = leftSharePct(home, away);
+
+  /**
+   * Ambele 0: pista neutră (fără segmente colorate / fără împărțire falsă 50–50).
+   * Rămâne vizibilă ca în celelalte rânduri din „Meci în cifre”.
+   */
+  if (leftPct == null) {
+    return (
+      <div className={`mt-1.5 ${BAR_TRACK}`} role="presentation" aria-hidden />
+    );
+  }
+
+  const rightPct = 100 - leftPct;
+
   return (
-    <div
-      className="flex h-[2px] w-full overflow-hidden rounded-full bg-border/40"
-      role="presentation"
-    >
+    <div className={`mt-1.5 flex ${BAR_TRACK}`} role="presentation" aria-hidden>
       <motion.div
-        className="rounded-full bg-primary/42"
+        className={BAR_HOME}
         initial={reduceMotion ? false : { width: "0%" }}
-        animate={{ width: `${Math.min(100, Math.max(0, leftPct))}%` }}
+        animate={{ width: `${leftPct}%` }}
         transition={
           reduceMotion
             ? { duration: 0 }
-            : { type: "spring", damping: 44, stiffness: 300 }
+            : { type: "spring", damping: 38, stiffness: 280 }
         }
       />
-      <div
-        className="h-full min-w-0 flex-1 rounded-full bg-sky-400/22"
-        aria-hidden
+      <motion.div
+        className={BAR_AWAY}
+        initial={reduceMotion ? false : { width: "0%" }}
+        animate={{ width: `${rightPct}%` }}
+        transition={
+          reduceMotion
+            ? { duration: 0 }
+            : { type: "spring", damping: 38, stiffness: 280, delay: 0.03 }
+        }
       />
     </div>
   );
 }
 
-type RowSpec = {
-  key: keyof FixtureLiveStatsSplit["home"];
-  label: string;
-  kind: "count" | "possession";
-};
-
-/** Ordinea dorită; includem un rând doar dacă API-ul trimite cel puțin o valoare. */
-const API_STAT_ROWS: RowSpec[] = [
-  { key: "shotsOnGoal", label: "Șuturi pe poartă", kind: "count" },
-  { key: "shotsTotal", label: "Șuturi (total)", kind: "count" },
-  { key: "corners", label: "Cornere", kind: "count" },
-  { key: "fouls", label: "Faulturi", kind: "count" },
-  { key: "possessionPct", label: "Posesie", kind: "possession" },
-  { key: "dangerousAttacks", label: "Atacuri periculoase", kind: "count" },
-  { key: "attacksNormal", label: "Atacuri", kind: "count" },
-  { key: "yellowCards", label: "Cartonașe galbene", kind: "count" },
-  { key: "redCards", label: "Cartonașe roșii", kind: "count" },
-];
-
-function pickPair(
-  s: FixtureLiveStatsSplit,
-  key: keyof FixtureTeamLiveNumbers,
-): { h: number | null; a: number | null } | null {
-  const av = s.away[key];
-  const hv = s.home[key];
-  const h = typeof hv === "number" && Number.isFinite(hv) ? Math.max(0, hv) : null;
-  const a = typeof av === "number" && Number.isFinite(av) ? Math.max(0, av) : null;
-  if (h == null && a == null) return null;
-  return { h, a };
-}
-
-function buildRowsFromApi(s: FixtureLiveStatsSplit): {
+type BuiltRow = {
   key: string;
   label: string;
-  disp: string;
-  barHome: number;
-  barAway: number;
-  showBar: boolean;
-}[] {
-  const out: ReturnType<typeof buildRowsFromApi> = [];
-  for (const spec of API_STAT_ROWS) {
-    const pair = pickPair(s, spec.key);
-    if (!pair) continue;
-    const disp =
-      spec.kind === "possession"
-        ? formatPossessionDisplay(pair.h, pair.a)
-        : formatPairDisplay(pair.h, pair.a);
-    const barHome = pair.h ?? 0;
-    const barAway = pair.a ?? 0;
-    const showBar =
-      spec.kind === "possession"
-        ? pair.h != null && pair.a != null
-        : pair.h != null && pair.a != null;
-    out.push({
-      key: spec.key,
-      label: spec.label,
-      disp,
-      barHome: Math.max(barHome, 1e-9),
-      barAway: Math.max(barAway, 1e-9),
-      showBar,
-    });
-  }
-  return out;
+  kind: "count" | "possession";
+  h: number;
+  a: number;
+};
+
+function buildRows(s: FixtureLiveStatsSplit | null): BuiltRow[] {
+  return STAT_ROWS.flatMap((spec) => {
+    if (
+      COUNT_STATS_REQUIRE_API.includes(spec.key) &&
+      (!s || !hasNumericStatPair(s, spec.key))
+    ) {
+      return [];
+    }
+    const pair = s ? pairNums(s, spec.key) : { h: 0, a: 0 };
+    return [
+      {
+        key: spec.key,
+        label: spec.label,
+        kind: spec.kind,
+        h: pair.h,
+        a: pair.a,
+      },
+    ];
+  });
 }
 
-/** Toate statisticile primite din `/fixtures/statistics` (mapate în `liveStatsSplit`) + goluri. */
+/** Statistici live din `liveStatsSplit` — layout tip Flashscore, bare ca în hero landing. */
 export function PredictionCardLiveMetrics({
   fixture,
 }: {
@@ -133,38 +167,7 @@ export function PredictionCardLiveMetrics({
   const reduceMotion = useReducedMotion();
   if (fixture.bucket === "upcoming") return null;
 
-  const s = fixture.liveStatsSplit;
-
-  const gh =
-    fixture.homeGoals != null && Number.isFinite(fixture.homeGoals)
-      ? Math.max(0, fixture.homeGoals)
-      : null;
-  const ga =
-    fixture.awayGoals != null && Number.isFinite(fixture.awayGoals)
-      ? Math.max(0, fixture.awayGoals)
-      : null;
-
-  const rows: {
-    key: string;
-    label: string;
-    disp: string;
-    barHome: number;
-    barAway: number;
-    showBar: boolean;
-  }[] = [
-    {
-      key: "goals",
-      label: "Goluri",
-      disp: formatPairDisplay(gh, ga),
-      barHome: gh ?? 1,
-      barAway: ga ?? 1,
-      showBar: gh != null && ga != null,
-    },
-  ];
-
-  if (s) {
-    rows.push(...buildRowsFromApi(s));
-  }
+  const rows = buildRows(fixture.liveStatsSplit ?? null);
 
   return (
     <section
@@ -174,26 +177,21 @@ export function PredictionCardLiveMetrics({
       <p className="text-[11px] font-medium uppercase tracking-wider text-foreground/72">
         Meci în cifre
       </p>
-      <ul className="mt-2 flex flex-col gap-2">
+      <ul className="mt-2.5 flex flex-col gap-3">
         {rows.map((r) => (
-          <li key={r.key} className="min-w-0 space-y-1">
-            <div className="flex items-baseline justify-between gap-3 tabular-nums">
-              <span className="shrink-0 text-[13px] font-medium tracking-tight text-foreground/88">
+          <li key={r.key} className="min-w-0">
+            <div className="grid grid-cols-[minmax(0,1fr)_auto_minmax(0,1fr)] items-baseline gap-x-2 gap-y-0.5 sm:gap-x-3">
+              <span className="text-left font-mono text-sm font-semibold tabular-nums tracking-tight text-foreground">
+                {formatCell(r.h, r.kind)}
+              </span>
+              <span className="max-w-[11rem] shrink px-1 text-center text-[10px] font-medium uppercase leading-tight tracking-wide text-foreground-muted sm:max-w-[13rem] sm:text-[11px]">
                 {r.label}
               </span>
-              <span className="min-w-0 truncate text-right text-[13px] font-semibold tabular-nums tracking-tight text-foreground">
-                {r.disp}
+              <span className="text-right font-mono text-sm font-semibold tabular-nums tracking-tight text-foreground">
+                {formatCell(r.a, r.kind)}
               </span>
             </div>
-            {r.showBar ? (
-              <ThinBar
-                home={r.barHome}
-                away={r.barAway}
-                reduceMotion={reduceMotion}
-              />
-            ) : (
-              <div className="h-[2px] w-full rounded-full bg-border/30" aria-hidden />
-            )}
+            <DualTeamBar home={r.h} away={r.a} reduceMotion={reduceMotion} />
           </li>
         ))}
       </ul>
