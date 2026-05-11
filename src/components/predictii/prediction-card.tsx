@@ -2,15 +2,13 @@
 
 import { motion, useReducedMotion } from "framer-motion";
 import {
-  ChevronDown,
   CircleMinus,
-  FileText,
   ListChecks,
   Lock,
   Timer,
   TrendingUp,
 } from "lucide-react";
-import { memo, useId, useMemo, useState } from "react";
+import { memo, useMemo } from "react";
 import { combinedDecimalFromPicks } from "@/lib/predictions/combined-odds";
 import type { PredictionPublicTeaser } from "@/lib/predictions/teaser-utils";
 import type {
@@ -27,7 +25,6 @@ import type { LiveProgressRow } from "@/lib/predictions/live-progress";
 import { liveTotalsFromFixture } from "@/lib/football-api/fixture-live-stats";
 import { liveFixtureClockLabel } from "@/lib/football-api/live-clock-display";
 import type { NormalizedFixture } from "@/lib/football-api/types";
-import { withoutLegacyProbixBookmakerDisclaimer } from "@/lib/probix-engine/explanations-ro";
 import { LiveBadge, LIVE_BADGE_TEXT_CLASS } from "@/components/ds/live-badge";
 import { MatchTeamsScoreRow } from "@/components/football/match-teams-score-row";
 import { PredictionCardLiveMetrics } from "@/components/predictii/prediction-card-live-metrics";
@@ -343,87 +340,6 @@ function ComboProgressStrip({ rows }: { rows: LiveProgressRow[] }) {
   );
 }
 
-/** Analiză — același chenar ca Predicție / Progres selecții; implicit pliată, listă completă la extindere. */
-function PredictionCardAnaliza({ bullets }: { bullets: string[] }) {
-  const [open, setOpen] = useState(false);
-  const listId = useId();
-
-  const headerRow = (
-    <>
-      <p className="min-w-0 truncate text-[11px] font-medium uppercase tracking-wider text-foreground/70">
-        Analiză
-      </p>
-      <span className="flex shrink-0 items-center gap-1.5" aria-hidden>
-        <FileText className="size-4 text-primary/80" />
-        <ChevronDown
-          className={cn(
-            "size-4 text-foreground-muted transition-transform duration-200",
-            open && "rotate-180",
-          )}
-        />
-      </span>
-    </>
-  );
-
-  const toggleClasses =
-    "w-full min-w-0 rounded-md text-left outline-none ring-offset-background transition-colors hover:bg-muted/25 focus-visible:ring-2 focus-visible:ring-primary/35 cursor-pointer";
-
-  return (
-    <section
-      className={cn(
-        HERO_PREDICTION_INNER,
-        open && "cursor-pointer transition-colors hover:bg-muted/15",
-      )}
-      aria-label="Analiză Probix"
-      onClick={open ? () => setOpen(false) : undefined}
-    >
-      {!open ? (
-        <button
-          type="button"
-          className={cn(toggleClasses, "flex flex-col gap-0")}
-          onClick={() => setOpen(true)}
-          aria-expanded={false}
-          aria-controls={listId}
-          aria-label="Extinde analiza"
-        >
-          <div className="flex min-w-0 items-center justify-between gap-2 py-0.5">
-            {headerRow}
-          </div>
-          <p className="mt-2 text-[13px] leading-relaxed text-foreground-muted">
-            Extinde pentru a citi analiza completă (
-            {bullets.length}{" "}
-            {bullets.length === 1 ? "punct" : "puncte"}).
-          </p>
-        </button>
-      ) : (
-        <>
-          <button
-            type="button"
-            className={cn(
-              toggleClasses,
-              "flex min-w-0 items-center justify-between gap-2 py-2 sm:py-2.5",
-            )}
-            onClick={() => setOpen(false)}
-            aria-expanded={true}
-            aria-controls={listId}
-            aria-label="Restrânge analiza"
-          >
-            {headerRow}
-          </button>
-          <ul
-            id={listId}
-            className="mt-1 list-outside list-disc space-y-2.5 pl-5 text-[13px] leading-relaxed text-foreground-secondary marker:text-foreground-muted/90 select-text [&>li]:text-pretty"
-          >
-            {bullets.map((line, ix) => (
-              <li key={`analiza-${ix}-${line.slice(0, 72)}`}>{line}</li>
-            ))}
-          </ul>
-        </>
-      )}
-    </section>
-  );
-}
-
 const PredictionCardInner = ({
   fixture,
   unlocked,
@@ -519,17 +435,7 @@ const PredictionCardInner = ({
     bucket: fixture.bucket,
   });
 
-  const hideIntelForUpcomingAwaiting =
-    fixture.bucket === "upcoming" &&
-    fullPredictionReveal &&
-    !prediction?.picks?.length;
-
-  const analysisBullets =
-    prediction?.explanationBullets?.length ?
-      withoutLegacyProbixBookmakerDisclaimer(prediction.explanationBullets)
-    : [];
-
-  /** Același limbaj vizual ca „Analiză” / teaser — fără chenar gradient suplimentar în card. */
+  /** Fără chenar gradient suplimentar în card când așteptăm predicția pre-meci. */
   const upcomingAwaitingIntel =
     fullPredictionReveal &&
     !prediction?.picks?.length &&
@@ -863,12 +769,6 @@ const PredictionCardInner = ({
 
       {!showPredictionLock && progressRows.length > 0 ? (
         <ComboProgressStrip rows={progressRows} />
-      ) : null}
-
-      {!showPredictionLock &&
-      !hideIntelForUpcomingAwaiting &&
-      analysisBullets.length > 0 ? (
-        <PredictionCardAnaliza bullets={analysisBullets} />
       ) : null}
 
       {showPredictionLock && teaser && !lockedLiveGuest ? (
