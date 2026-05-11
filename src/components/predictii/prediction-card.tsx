@@ -465,16 +465,13 @@ const PredictionCardInner = ({
   /** Aceeași bandă status + scor ca la live; la „Urmează” (user cu predicție) centrul = ora de start. */
   const showMatchStatusBand =
     fixture.bucket === "live" ||
+    fixture.bucket === "finished" ||
     (fixture.bucket === "upcoming" &&
       !showPredictionLock &&
       Boolean(prediction?.picks?.length));
 
   const metaTime =
-    fixture.bucket === "finished" ? (
-      <span className="inline text-[11px] tabular-nums text-foreground/85">
-        FINAL
-      </span>
-    ) : fullPredictionReveal && prediction?.generatedAt ? (
+    fullPredictionReveal && prediction?.generatedAt ? (
       <time
         dateTime={prediction.generatedAt}
         className="inline text-[11px] tabular-nums text-foreground/85"
@@ -491,8 +488,7 @@ const PredictionCardInner = ({
     );
 
   const showGeneratedPrefix =
-    fixture.bucket === "finished" ||
-    (fullPredictionReveal && Boolean(prediction?.generatedAt));
+    fullPredictionReveal && Boolean(prediction?.generatedAt);
 
   const showPredictionBody =
     fullPredictionReveal && prediction?.picks?.length;
@@ -572,6 +568,10 @@ const PredictionCardInner = ({
                       )}
                     >
                       {liveClockLabel}
+                    </span>
+                  ) : fixture.bucket === "finished" ? (
+                    <span className="block text-center text-xs font-medium tabular-nums text-foreground/85">
+                      FINAL
                     </span>
                   ) : fixture.bucket === "upcoming" ? (
                     <span className="block text-center text-xs font-medium tabular-nums tracking-tight text-foreground-muted">
