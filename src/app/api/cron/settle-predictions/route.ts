@@ -23,11 +23,13 @@ export const dynamic = "force-dynamic";
  * public să poată lista combinații rezolvate (`won` / `lost` / `void`).
  *
  * Query:
- * - `repair=1` — recitește meciul din API și **rescrie** settlement + `pickResults` pentru toate
- *   rândurile cu picioare din ultimele 2 zile (azi + ieri RO), chiar dacă erau deja `won`/`lost`.
- *   Folosește când statisticile/verdictul au fost calculate pe date incomplete.
+ * - `repair=1` — recitește din API și **rescrie** settlement + `pickResults` pentru rânduri cu picioare
+ *   (implicit ultimele **7** zile RO, vezi `repair_lookback_days`), inclusiv deja `won`/`lost`.
  * - `fixture_id=1531539` — limitează la acel meci (orice `date_ro` în DB); combinat cu `repair=1`
  *   pentru un singur meci în producție.
+ * - `repair_lookback_days=7` (doar cu `repair=1`, fără `fixture_id`) — citește `prediction_reports` pentru
+ *   ultimele N zile RO (implicit **7** la `repair=1`, max 14), recalculează settlement; sare peste rânduri
+ *   neschimbate. Folosit pentru corecții API (statistici) după ce meciul e deja închis în DB.
  */
 export async function GET(request: Request) {
   const { searchParams } = new URL(request.url);
@@ -41,6 +43,18 @@ export async function GET(request: Request) {
   const fixtureIdFilter =
     Number.isFinite(fixtureIdParsed) && fixtureIdParsed > 0
       ? Math.floor(fixtureIdParsed)
+      : null;
+
+  const repairLookbackRaw = searchParams.get("repair_lookback_days") ?? "";
+  const repairLookbackParsed = repairLookbackRaw.trim()
+    ? Number(repairLookbackRaw)
+    : NaN;
+  /** La `repair=1` fără `fixture_id`, implicit 7 zile (max 14). */
+  const repairLookbackDays =
+    repair && fixtureIdFilter == null
+      ? Number.isFinite(repairLookbackParsed) && repairLookbackParsed > 0
+        ? Math.min(14, Math.floor(repairLookbackParsed))
+        : 7
       : null;
 
   const secret = process.env.CRON_SECRET;
@@ -76,14 +90,20 @@ export async function GET(request: Request) {
 
   const today = getBucharestDateString();
 
-  const dates = [today, shiftBucharestDateRo(today, -1)];
+  /** Folosit doar când nu e `fixture_id`; altfel ignorat. */
+  const datesForReportFetch: string[] =
+    repair && repairLookbackDays != null
+      ? Array.from({ length: repairLookbackDays }, (_, i) =>
+          shiftBucharestDateRo(today, -i),
+        )
+      : [today, shiftBucharestDateRo(today, -1)];
 
   const allRows =
     fixtureIdFilter != null
       ? await fetchPredictionReportRowsForFixtureId(sb, fixtureIdFilter)
       : (
           await Promise.all(
-            dates.map((d) => fetchPredictionReportRowsForDate(sb, d)),
+            datesForReportFetch.map((d) => fetchPredictionReportRowsForDate(sb, d)),
           )
         ).flat();
 
@@ -151,6 +171,7 @@ export async function GET(request: Request) {
   return Response.json({
     ok: true,
     repair,
+    repair_lookback_days: repair ? repairLookbackDays : undefined,
     fixture_id: fixtureIdFilter,
     processed,
     skippedUnchanged: repair ? skippedUnchanged : undefined,

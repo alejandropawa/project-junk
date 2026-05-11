@@ -89,15 +89,26 @@ function resolvePredictionStatusLabel(params: {
   revealsCombinationOutcome: boolean;
   hasPrediction: boolean;
   backend?: PredictionSettlement;
+  /** La FT: din datele curente ale meciului (poate depăși `settlement` din DB până la reparare cron). */
   derived: ReturnType<typeof deriveComboVisualSettlement>;
   bucket: NormalizedFixture["bucket"];
 }): string | null {
   if (!params.revealsCombinationOutcome || !params.hasPrediction) return null;
   if (params.bucket === "upcoming") return "Nu a început";
-  const v =
-    params.backend && params.backend !== "pending"
-      ? params.backend
-      : params.derived;
+  let v: ReturnType<typeof deriveComboVisualSettlement>;
+  if (params.bucket === "finished") {
+    v =
+      params.derived !== "pending"
+        ? params.derived
+        : params.backend && params.backend !== "pending"
+          ? params.backend
+          : "pending";
+  } else {
+    v =
+      params.backend && params.backend !== "pending"
+        ? params.backend
+        : params.derived;
+  }
   if (v === "won") return "Combinație validată";
   if (v === "lost") return "Combinație neîndeplinită";
   if (v === "void") return "Combinație anulată";
@@ -370,16 +381,26 @@ const PredictionCardInner = ({
 
   const derivedLiveTotals = useMemo(() => liveTotalsFromFixture(fixture), [fixture]);
 
-  const comboVisual = useMemo(
-    () =>
-      deriveComboVisualSettlement(
+  /**
+   * La FT ignorăm `payload.settlement` pentru chenar + badge: rămâne aliniat la API-ul curent
+   * (ex. cornere corectate după fluier). DB se aliniază prin `settle-predictions?repair=1`.
+   */
+  const comboVisual = useMemo(() => {
+    if (fixture.bucket === "finished" && prediction?.picks?.length) {
+      return deriveComboVisualSettlement(
         fixture,
-        prediction?.picks,
-        prediction?.settlement,
+        prediction.picks,
+        undefined,
         derivedLiveTotals,
-      ),
-    [fixture, prediction?.picks, prediction?.settlement, derivedLiveTotals],
-  );
+      );
+    }
+    return deriveComboVisualSettlement(
+      fixture,
+      prediction?.picks,
+      prediction?.settlement,
+      derivedLiveTotals,
+    );
+  }, [fixture, prediction, derivedLiveTotals]);
 
   const progressRows = useMemo(() => {
     if (!prediction?.picks?.length || fixture.bucket === "upcoming") return [];
