@@ -1,7 +1,7 @@
 /**
  * Greutăți deterministe — calibrare manuală; versiune la schimbări majore.
  */
-export const PROBIX_ENGINE_VERSION = "probix-engine/1.3.2";
+export const PROBIX_ENGINE_VERSION = "probix-engine/1.3.3";
 
 /** Ligi eligibile pentru motor (calitate ridicată, date consistente). */
 export const PROBIX_ENGINE_LEAGUE_IDS = new Set<number>([
