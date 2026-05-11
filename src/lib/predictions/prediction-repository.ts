@@ -185,6 +185,24 @@ export async function fetchPredictionReportRowsForDate(
   return data as PredictionReportRow[];
 }
 
+/** Toate rândurile din `prediction_reports` pentru un meci (orice `date_ro`). */
+export async function fetchPredictionReportRowsForFixtureId(
+  sb: SupabaseClient,
+  fixtureId: number,
+): Promise<PredictionReportRow[]> {
+  if (!Number.isFinite(fixtureId) || fixtureId <= 0) return [];
+  const { data, error } = await sb
+    .from(TABLE)
+    .select(
+      "fixture_id,date_ro,home_name,away_name,league_name,kickoff_iso,payload",
+    )
+    .eq("fixture_id", fixtureId)
+    .order("date_ro", { ascending: false });
+
+  if (error || !data) return [];
+  return data as PredictionReportRow[];
+}
+
 export async function fetchDistinctPredictionDatesRo(
   sb: SupabaseClient,
 ): Promise<string[]> {

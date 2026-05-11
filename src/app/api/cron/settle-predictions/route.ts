@@ -11,6 +11,7 @@ import {
 import { isPredictionCombinationResolved } from "@/lib/predictions/prediction-access";
 import {
   fetchPredictionReportRowsForDate,
+  fetchPredictionReportRowsForFixtureId,
   upsertPrediction,
 } from "@/lib/predictions/prediction-repository";
 import { createServiceRoleClient } from "@/lib/supabase/admin";
@@ -25,12 +26,22 @@ export const dynamic = "force-dynamic";
  * - `repair=1` — recitește meciul din API și **rescrie** settlement + `pickResults` pentru toate
  *   rândurile cu picioare din ultimele 2 zile (azi + ieri RO), chiar dacă erau deja `won`/`lost`.
  *   Folosește când statisticile/verdictul au fost calculate pe date incomplete.
+ * - `fixture_id=1531539` — limitează la acel meci (orice `date_ro` în DB); combinat cu `repair=1`
+ *   pentru un singur meci în producție.
  */
 export async function GET(request: Request) {
   const { searchParams } = new URL(request.url);
   const repair =
     searchParams.get("repair") === "1" ||
     searchParams.get("repair") === "true";
+
+  const fixtureIdRaw =
+    searchParams.get("fixture_id") ?? searchParams.get("fixtureId") ?? "";
+  const fixtureIdParsed = fixtureIdRaw.trim() ? Number(fixtureIdRaw.trim()) : NaN;
+  const fixtureIdFilter =
+    Number.isFinite(fixtureIdParsed) && fixtureIdParsed > 0
+      ? Math.floor(fixtureIdParsed)
+      : null;
 
   const secret = process.env.CRON_SECRET;
   const auth = request.headers.get("authorization");
@@ -67,9 +78,14 @@ export async function GET(request: Request) {
 
   const dates = [today, shiftBucharestDateRo(today, -1)];
 
-  const allRows = (
-    await Promise.all(dates.map((d) => fetchPredictionReportRowsForDate(sb, d)))
-  ).flat();
+  const allRows =
+    fixtureIdFilter != null
+      ? await fetchPredictionReportRowsForFixtureId(sb, fixtureIdFilter)
+      : (
+          await Promise.all(
+            dates.map((d) => fetchPredictionReportRowsForDate(sb, d)),
+          )
+        ).flat();
 
   const candidates = repair
     ? allRows.filter((r) => Boolean(r.payload.picks?.length))
@@ -79,6 +95,7 @@ export async function GET(request: Request) {
     return Response.json({
       ok: true,
       repair,
+      fixture_id: fixtureIdFilter,
       processed: 0,
       checked: 0,
       at: new Date().toISOString(),
@@ -134,6 +151,7 @@ export async function GET(request: Request) {
   return Response.json({
     ok: true,
     repair,
+    fixture_id: fixtureIdFilter,
     processed,
     skippedUnchanged: repair ? skippedUnchanged : undefined,
     checked: candidates.length,
