@@ -1,6 +1,6 @@
 import { PredictiiFixturesView } from "@/components/predictii/predictii-fixtures-view";
 import type { PredictionPayload } from "@/lib/predictions/types";
-import { fetchPredictionsForDate } from "@/lib/predictions/prediction-repository";
+import { fetchPredictionsForFixtureIds } from "@/lib/predictions/prediction-repository";
 import {
   teaserFromPayload,
   type PredictionPublicTeaser,
@@ -12,6 +12,7 @@ import {
 } from "@/lib/football-api/fetch-today";
 import {
   buildDummyPredictiiPreview,
+  isDummyPredictiiFixtureId,
   shouldShowDummyPredictiiCard,
 } from "@/lib/predictii/dummy-preview";
 import { createServiceRoleClient } from "@/lib/supabase/admin";
@@ -39,35 +40,41 @@ export default async function PredictiiPage() {
   > = {};
 
   /**
-   * Utilizatori autentificați: încarcă predicțiile pentru meciurile afișate.
-   *
-   * Folosim preferențial `service_role` pe server după ce am verificat sesiunea — evită
-   * goluri când JWT-ul din cookie ajunge întârziat în RSC chiar dacă utilizatorul e logat,
-   * caz în care `.from(prediction_reports)` cu client anon returna 0 rânduri fără eroare.
+   * Predicții după `fixture_id` (nu doar `date_ro` = ziua paginii), ca meciurile afișate
+   * de API pentru „azi” să găsească rândul salvat chiar dacă `date_ro` din DB e altă zi.
    */
-  if (sessionUser && data.ok) {
-    const admin = createServiceRoleClient();
-    const map =
-      admin != null
-        ? await fetchPredictionsForDate(admin, data.date)
-        : await fetchPredictionsForDate(supabase, data.date);
-    for (const f of data.fixtures) {
-      const p = map.get(f.id);
-      if (p != null) {
-        predictionsByFixtureId[f.id] = p;
-      }
-    }
-  }
+  if (data.ok) {
+    const fixtureIds = data.fixtures
+      .map((f) => f.id)
+      .filter((id) => !isDummyPredictiiFixtureId(id));
 
-  if (!sessionUser && data.ok) {
-    const admin = createServiceRoleClient();
-    if (admin) {
-      const map = await fetchPredictionsForDate(admin, data.date);
-      const fxById = new Map(data.fixtures.map((f) => [f.id, f] as const));
-      for (const [id, payload] of map.entries()) {
-        predictionTeasersByFixtureId[id] = teaserFromPayload(payload);
-        if (fxById.get(id)?.bucket === "finished") {
-          predictionsByFixtureId[id] = payload;
+    if (sessionUser) {
+      const admin = createServiceRoleClient();
+      const client = admin ?? supabase;
+      const map = await fetchPredictionsForFixtureIds(
+        client,
+        fixtureIds,
+        data.date,
+      );
+      for (const f of data.fixtures) {
+        const p = map.get(f.id);
+        if (p != null) predictionsByFixtureId[f.id] = p;
+      }
+    } else {
+      const admin = createServiceRoleClient();
+      if (admin) {
+        const map = await fetchPredictionsForFixtureIds(
+          admin,
+          fixtureIds,
+          data.date,
+        );
+        for (const f of data.fixtures) {
+          const p = map.get(f.id);
+          if (p == null) continue;
+          predictionTeasersByFixtureId[f.id] = teaserFromPayload(p);
+          if (f.bucket === "finished") {
+            predictionsByFixtureId[f.id] = p;
+          }
         }
       }
     }

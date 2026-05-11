@@ -92,6 +92,73 @@ export async function fetchPredictionsForDate(
   return out;
 }
 
+function pickPayloadForFixtureRows(
+  rows: { date_ro: string; payload: PredictionPayload }[],
+  pageDateRo?: string,
+): PredictionPayload | null {
+  if (rows.length === 0) return null;
+  const withPicks = rows.filter((r) => (r.payload.picks?.length ?? 0) > 0);
+  const pool = withPicks.length > 0 ? withPicks : rows;
+  if (pageDateRo) {
+    const exact = pool.find((r) => r.date_ro === pageDateRo);
+    if (exact) return exact.payload;
+  }
+  const sorted = [...pool].sort((a, b) => b.date_ro.localeCompare(a.date_ro));
+  return sorted[0]?.payload ?? null;
+}
+
+/**
+ * Predicții pentru meciurile din listă, indiferent de `date_ro` din DB.
+ * Rezolvă cazul în care `prediction_reports.date_ro` ≠ ziua paginii (ex. trecere mieznoapte / reîncadrare API).
+ */
+export async function fetchPredictionsForFixtureIds(
+  sb: SupabaseClient,
+  fixtureIds: readonly number[],
+  pageDateRo?: string,
+): Promise<Map<number, PredictionPayload>> {
+  const ids = [
+    ...new Set(
+      fixtureIds.filter((id) => typeof id === "number" && id > 0 && Number.isFinite(id)),
+    ),
+  ];
+  const out = new Map<number, PredictionPayload>();
+  if (ids.length === 0) return out;
+
+  const { data, error } = await sb
+    .from(TABLE)
+    .select("fixture_id,date_ro,payload")
+    .in("fixture_id", ids);
+
+  if (error || !data) return out;
+
+  const byFixture = new Map<
+    number,
+    { date_ro: string; payload: PredictionPayload }[]
+  >();
+
+  for (const r of data as {
+    fixture_id: number | string;
+    date_ro: string;
+    payload: PredictionPayload;
+  }[]) {
+    const fid =
+      typeof r.fixture_id === "string"
+        ? Number(r.fixture_id)
+        : Number(r.fixture_id);
+    if (!Number.isFinite(fid)) continue;
+    const list = byFixture.get(fid) ?? [];
+    list.push({ date_ro: r.date_ro, payload: r.payload });
+    byFixture.set(fid, list);
+  }
+
+  for (const [fid, rows] of byFixture) {
+    const payload = pickPayloadForFixtureRows(rows, pageDateRo);
+    if (payload != null) out.set(fid, payload);
+  }
+
+  return out;
+}
+
 export async function fetchPredictionReportRowsForDate(
   sb: SupabaseClient,
   dateRo: string,
