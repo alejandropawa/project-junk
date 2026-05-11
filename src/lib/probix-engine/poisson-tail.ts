@@ -18,7 +18,6 @@ export function poissonTailAtLeast(minK: number, lambda: number): number {
   if (!Number.isFinite(lambda) || lambda < 1e-6) return minK <= 0 ? 1 : 0;
   if (minK <= 0) return 1;
   let cdf = 0;
-  let maxScan = Math.min(40, Math.max(minK + 35, Math.ceil(lambda + 8 * Math.sqrt(lambda))));
   for (let k = 0; k < minK; k++) cdf += poissonPmf(k, lambda);
   return Number.isFinite(cdf) ? Math.min(1, Math.max(0, 1 - cdf)) : 0;
 }

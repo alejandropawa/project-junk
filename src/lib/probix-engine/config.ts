@@ -1,8 +1,7 @@
 /**
- * Greutăți deterministe - calibrare manuală; versiune la schimbări majore.
- * Sumele din fiecare strat trebuie să rămână interpretabile (nu învățare automată).
+ * Greutăți deterministe — calibrare manuală; versiune la schimbări majore.
  */
-export const PROBIX_ENGINE_VERSION = "probix-engine/1.2.0";
+export const PROBIX_ENGINE_VERSION = "probix-engine/1.3.1";
 
 /** Ligi eligibile pentru motor (calitate ridicată, date consistente). */
 export const PROBIX_ENGINE_LEAGUE_IDS = new Set<number>([
@@ -10,42 +9,80 @@ export const PROBIX_ENGINE_LEAGUE_IDS = new Set<number>([
 ]);
 
 export const WEIGHTS = {
-  /** Formă recentă (șir W/D/L + goluri). */
   recentForm: 0.25,
-  /** Presiune ofensivă / finalizare. */
   attack: 0.2,
-  /** Permisivitate defensivă. */
   defense: 0.2,
-  /** Context (H2H, disponibilitate date). */
   context: 0.15,
-  /** Consistență piețe / acord între semnale. */
   marketAgreement: 0.1,
-  /** Stabilitate varianță (penalizare combinații riscante). */
   varianceGuard: 0.1,
 } as const;
 
-/** Prag minim de încredere pe o piață (0–1) pentru a fi candidat. */
-export const MIN_MARKET_CONFIDENCE = 0.56;
+/** Prag minim încredere (agregare) — filtru slab pe pool înainte de scoring. */
+export const MIN_MARKET_CONFIDENCE = 0.48;
 
-/** Prag strict pentru a 3-a selecție. */
-export const MIN_MARKET_CONFIDENCE_LEG3 = 0.52;
-
-/** Produs probabilități (independență aprox.) - țintă mai joasă ⇒ cote combinate mai mari (>2). */
-export const TARGET_PROB_PRODUCT = 0.38;
-
-export const MAX_PROB_PRODUCT = 0.5;
-
-export const MIN_PROB_PRODUCT = 0.27;
-
-/** Cotă combinată minimă țintă (după selecție + eventual boost). */
-export const MIN_COMBINED_DECIMAL_PROBIX = 2;
-
-/** Limite cote afișate / estimate (margini agenți). */
-export const DECIMAL_CLAMP = { min: 1.18, max: 2.75 } as const;
-
-/** Penalizare încredere dacă al doilea picior e din aceeași familie de risc. */
-export const CORRELATION_PENALTY = 0.12;
+/** Prag pragmatic leg 3 dacă apare în brute-force (nu forțat). */
+export const MIN_MARKET_CONFIDENCE_LEG3 = 0.44;
 
 export const MAX_LEGS = 3;
 
-export const MIN_LEGS = 2;
+/** Permis 1 (single), 2 sau 3 (doar dacă scorul justifică). */
+export const MIN_LEGS = 1;
+
+/** Limite cote fallback sintetic / clamp marginal. */
+export const DECIMAL_CLAMP = { min: 1.18, max: 2.75 } as const;
+
+/** ─── Selecție edge + prob (per piață) ─── */
+export const SELECTION_EDGE_WEIGHT = 0.45;
+
+export const SELECTION_PROB_WEIGHT = 0.3;
+
+export const SELECTION_DATA_WEIGHT = 0.15;
+
+/** Penalizare agregare piețe (linii agresive). */
+export const SELECTION_AGG_WEIGHT = 0.12;
+
+export const SELECTION_PREF_WEIGHT = 0.08;
+
+/** ─── Scor combinație (prioritate pentru P(câștig combinat); edge e al doilea). ─── */
+export const COMBO_PROB_WEIGHT = 0.52;
+
+export const COMBO_EDGE_WEIGHT = 0.28;
+
+export const COMBO_CORR_WEIGHT = 0.2;
+
+/** Niciun picior cu cotă agent nu trebuie să fie valorificat slab într-o combinație. */
+export const BOOK_COMBO_MIN_LEG_EDGE = -0.035;
+
+/** Dacă doi finaliști au `comboScore` apropiat, preferă probabilitatea combinată mai mare. */
+export const FINALIST_SCORE_NEAR_EPS = 0.018;
+
+/** Bias pentru pool brute-force — favorizează candidați cu p model mare (hit-rate). */
+export const POOL_RANK_PROB_LEAN = 0.22;
+
+/** Cote agent: în afara benzii → piața e exclusă dacă avem preț din API (lichiditate/slabă calitate). */
+export const BOOK_ODDS_MIN = 1.2;
+
+export const BOOK_ODDS_MAX = 3.5;
+
+/** Prag calitate minimă pentru a accepta predicție. */
+export const MIN_DATA_QUALITY_FOR_PREDICTION = 0.38;
+
+/** Fereastră probabilitate model pentru pool (evită cozi extreme). */
+export const MODEL_PROB_POOL_MIN = 0.41;
+
+export const MODEL_PROB_POOL_MAX = 0.84;
+
+/**
+ * Sumă penalizări structurale pairwise peste prag → combinație respinsă.
+ */
+export const COMBO_HARD_CORRELATION_REJECT_SUM = 0.52;
+
+/**
+ * Platou pe reducerile aplicate la ∏p: comboProbAdj = ∏p * (1 - min(cap, sumPen)).
+ */
+export const COMBO_CORR_PROB_DAMAGE_CAP = 0.62;
+
+/** Triplă doar dacă bate clar cea mai bună dublă. */
+export const TRIPLE_SCORE_IMPROVE_OVER_DOUBLE = 0.042;
+
+export const MAX_CANDIDATES_FOR_COMBO_SEARCH = 30;

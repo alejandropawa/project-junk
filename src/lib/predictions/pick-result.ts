@@ -4,10 +4,6 @@ import type { NormalizedFixture } from "@/lib/football-api/types";
 
 export type PickResult = "won" | "lost" | "pending" | "void";
 
-function ceilHalfLine(line: number): number {
-  return Math.ceil(line - 1e-9);
-}
-
 function halfLineDecimalRo(line: number): string {
   return String(line).replace(".", ",");
 }

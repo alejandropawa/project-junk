@@ -11,6 +11,8 @@ export type MarketFamily =
   | "result_safe"
   | "btts";
 
+export type OddsSource = "bookmaker" | "synthetic_fallback";
+
 export type MarketCandidate = {
   marketId: string;
   family: MarketFamily;
@@ -19,12 +21,24 @@ export type MarketCandidate = {
   selection: string;
   /** Probabilitate estimată 0–1 (determinist). */
   p: number;
-  /** Încredere în semnal 0–1. */
+  /** După calibrare + stabilitate + încredere familie (opțional, pentru afișare). */
+  calibratedProb?: number;
+  /** Încredere în semnal 0–1 (agregare formă/date). */
   confidence: number;
-  /** Cotă estimată (inclusiv marjă agenți). */
+  /**
+   * Fallback sintetic pentru UI / lipsă Odds API: (1/p)*marjă, clamp.
+   * Selecția folosește `bookmakerDecimal` când există cotă reală.
+   */
   estimatedDecimal: number;
   /** Contribuții pentru explicații (ponderi simple). */
   rationaleKeys: string[];
+  /** Populated după mapare Odds API (sau egal cu `estimatedDecimal` la fallback). */
+  bookmakerDecimal?: number;
+  bookmakerImpliedProb?: number;
+  /** Model − implied; 0 dacă lipsă cotă agent. */
+  edgeScore?: number;
+  oddsSource?: OddsSource;
+  correlationTags?: string[];
 };
 
 export type TeamProfile = {
@@ -82,8 +96,16 @@ export type ProbixEngineInput = {
   h2h: H2HSummary;
 };
 
+export type ProbixComboType = "single" | "double" | "triple";
+
 export type ProbixEngineOutput = {
   picks: MarketCandidate[];
+  comboType: ProbixComboType;
+  /** Scor intern combinație câștigătoare (nu cotă). */
+  comboScore: number;
+  /** Probabilitate combinată ajustată pentru corelație (0–1). */
+  comboProbability: number;
+  totalEdge: number;
   confidenceScore: number;
   confidenceAvg: number;
   estimatedCombinedDecimal: number;

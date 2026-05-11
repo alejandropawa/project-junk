@@ -46,8 +46,16 @@ export function generateExplanationBullets(
   bullets.push(`Selecții semnalate deterministic (fără învățare automată):`);
 
   for (const p of picks) {
+    const d =
+      typeof p.bookmakerDecimal === "number"
+        ? p.bookmakerDecimal
+        : p.estimatedDecimal;
+    const src =
+      p.oddsSource === "bookmaker"
+        ? "cotă mediană agent (baseline)"
+        : "cotă sintetică (fallback dacă lipsesc liniile în Odds API)";
     bullets.push(
-      `- ${p.label}: ${p.selection} (cotă estimată orientativă @${p.estimatedDecimal.toFixed(2)}).`,
+      `- ${p.label}: ${p.selection} (${src} @${d.toFixed(2)}; model ~${Math.round(p.p * 100)}%).`,
     );
   }
 

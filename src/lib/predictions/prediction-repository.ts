@@ -142,6 +142,47 @@ export async function fetchDistinctPredictionDateRosResolvedPublic(
   return [...set].sort();
 }
 
+/** Rânduri ușoare pentru probix-evolution (ligă + payload JSON). */
+export async function fetchPredictionReportsForLearning(
+  sb: SupabaseClient,
+  maxRows = 6_000,
+): Promise<{ league_name: string; payload: PredictionPayload }[]> {
+  const page = 500;
+  const out: { league_name: string; payload: PredictionPayload }[] = [];
+  let from = 0;
+  for (;;) {
+    if (out.length >= maxRows) break;
+    const { data, error } = await sb
+      .from(TABLE)
+      .select("league_name,payload")
+      .range(from, from + page - 1);
+    if (error) break;
+    const rows =
+      data as { league_name: string; payload: PredictionPayload }[] | null;
+    if (!rows?.length) break;
+    for (const r of rows) {
+      if (out.length >= maxRows) break;
+      if (r.league_name && r.payload) out.push({ league_name: r.league_name, payload: r.payload });
+    }
+    if (rows.length < page) break;
+    from += page;
+  }
+  return out;
+}
+
+/**
+ * Șterge tot istoricul `prediction_reports` (operațiune drastică — folosit după redeploy dacă ceri regenerare masivă).
+ * Filtru tautologic sigur pentru PostgREST: `fixture_id >= 0`.
+ */
+export async function deleteAllPredictionReports(
+  sb: SupabaseClient,
+): Promise<{ ok: true } | { ok: false; error: string }> {
+  const { error } = await sb.from(TABLE).delete().gte("fixture_id", 0);
+  if (error)
+    return { ok: false, error: `${error.code ?? "?"} ${error.message}`.trim() };
+  return { ok: true };
+}
+
 export async function fetchAllPredictionPayloadsForMetrics(
   sb: SupabaseClient,
 ): Promise<PredictionPayload[]> {

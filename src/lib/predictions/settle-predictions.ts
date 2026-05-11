@@ -1,4 +1,7 @@
-import { deriveComboVisualSettlement } from "@/lib/predictions/pick-result";
+import {
+  deriveComboVisualSettlement,
+  evaluatePickResult,
+} from "@/lib/predictions/pick-result";
 import type { PredictionPayload } from "@/lib/predictions/types";
 import { isPredictionCombinationResolved } from "@/lib/predictions/prediction-access";
 import { enrichFixturesWithLiveStatistics } from "@/lib/football-api/enrich-fixtures-live-statistics";
@@ -32,7 +35,21 @@ export function mergedPayloadWithSettlement(
     totals,
   );
   if (derived === "pending") return null;
-  return { ...payload, settlement: derived };
+
+  const pickResults = payload.picks.map((pick) => ({
+    marketId: pick.marketId,
+    result: evaluatePickResult(nf, pick, totals),
+  }));
+
+  return {
+    ...payload,
+    settlement: derived,
+    calibrationOutcome: {
+      settledAt: new Date().toISOString(),
+      comboResult: derived,
+      pickResults,
+    },
+  };
 }
 
 export async function fetchNormalizedFixturesByIds(
