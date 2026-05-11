@@ -470,7 +470,11 @@ const PredictionCardInner = ({
       Boolean(prediction?.picks?.length));
 
   const metaTime =
-    fullPredictionReveal && prediction?.generatedAt ? (
+    fixture.bucket === "finished" ? (
+      <span className="inline text-[11px] tabular-nums text-foreground/85">
+        FINAL
+      </span>
+    ) : fullPredictionReveal && prediction?.generatedAt ? (
       <time
         dateTime={prediction.generatedAt}
         className="inline text-[11px] tabular-nums text-foreground/85"
@@ -485,6 +489,10 @@ const PredictionCardInner = ({
         {formatClock(fixture.kickoffIso)}
       </time>
     );
+
+  const showGeneratedPrefix =
+    fixture.bucket === "finished" ||
+    (fullPredictionReveal && Boolean(prediction?.generatedAt));
 
   const showPredictionBody =
     fullPredictionReveal && prediction?.picks?.length;
@@ -517,20 +525,15 @@ const PredictionCardInner = ({
       {/* 1 · TOP META */}
       <div className="flex min-w-0 items-center justify-between gap-3">
         <div className="min-w-0 shrink text-[11px] leading-none">
-          {!fullPredictionReveal || !prediction?.generatedAt ? (
+          {showGeneratedPrefix ? (
             <>
-              <span className="text-foreground-muted/75">Programat · </span>
+              <span className="text-foreground-muted/75">Generat · </span>
               {metaTime}
             </>
           ) : (
             <>
-              <span className="text-foreground-muted/75">Generat · </span>
-              <time
-                dateTime={prediction.generatedAt}
-                className="inline tabular-nums text-foreground/85"
-              >
-                {formatGeneratedShort(prediction.generatedAt)}
-              </time>
+              <span className="text-foreground-muted/75">Programat · </span>
+              {metaTime}
             </>
           )}
         </div>
