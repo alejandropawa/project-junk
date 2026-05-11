@@ -19,12 +19,14 @@ const API_BASE =
 
 const FETCH_CHUNK = 20;
 
-/** Actualizează `settlement` pe payload când combinația e decisă la status final din API. */
-export function mergedPayloadWithSettlement(
+/**
+ * Recalculează `settlement` + `pickResults` din **fixture-ul curent** (API + statistici îmbogățite),
+ * fără a lua în calcul verdictul deja salvat — folosit la `repair` sau la primul settle.
+ */
+export function recomputeSettlementPayloadFromFixture(
   nf: NormalizedFixture,
   payload: PredictionPayload,
 ): PredictionPayload | null {
-  if (isPredictionCombinationResolved(payload)) return null;
   if (!payload.picks?.length) return null;
   if (nf.bucket !== "finished") return null;
   if (!isTerminalFixtureStatus(nf.statusShort)) return null;
@@ -33,7 +35,7 @@ export function mergedPayloadWithSettlement(
   const derived = deriveComboVisualSettlement(
     nf,
     payload.picks,
-    payload.settlement,
+    undefined,
     totals,
   );
   if (derived === "pending") return null;
@@ -52,6 +54,15 @@ export function mergedPayloadWithSettlement(
       pickResults,
     },
   };
+}
+
+/** Actualizează `settlement` pe payload când combinația e decisă la status final din API (doar dacă încă `pending`). */
+export function mergedPayloadWithSettlement(
+  nf: NormalizedFixture,
+  payload: PredictionPayload,
+): PredictionPayload | null {
+  if (isPredictionCombinationResolved(payload)) return null;
+  return recomputeSettlementPayloadFromFixture(nf, payload);
 }
 
 export async function fetchNormalizedFixturesByIds(

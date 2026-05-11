@@ -6,6 +6,7 @@ import {
 import {
   fetchNormalizedFixturesByIds,
   mergedPayloadWithSettlement,
+  recomputeSettlementPayloadFromFixture,
 } from "@/lib/predictions/settle-predictions";
 import { isPredictionCombinationResolved } from "@/lib/predictions/prediction-access";
 import {
@@ -19,8 +20,18 @@ export const dynamic = "force-dynamic";
 /**
  * Cron: după FT, persistă `settlement` în `prediction_reports.payload` pentru ca istoricul
  * public să poată lista combinații rezolvate (`won` / `lost` / `void`).
+ *
+ * Query:
+ * - `repair=1` — recitește meciul din API și **rescrie** settlement + `pickResults` pentru toate
+ *   rândurile cu picioare din ultimele 2 zile (azi + ieri RO), chiar dacă erau deja `won`/`lost`.
+ *   Folosește când statisticile/verdictul au fost calculate pe date incomplete.
  */
 export async function GET(request: Request) {
+  const { searchParams } = new URL(request.url);
+  const repair =
+    searchParams.get("repair") === "1" ||
+    searchParams.get("repair") === "true";
+
   const secret = process.env.CRON_SECRET;
   const auth = request.headers.get("authorization");
   const key = process.env.FOOTBALL_API_KEY?.trim();
@@ -56,36 +67,53 @@ export async function GET(request: Request) {
 
   const dates = [today, shiftBucharestDateRo(today, -1)];
 
-  const pending = (
+  const allRows = (
     await Promise.all(dates.map((d) => fetchPredictionReportRowsForDate(sb, d)))
-  )
-    .flat()
-    .filter((r) => !isPredictionCombinationResolved(r.payload));
+  ).flat();
 
-  if (pending.length === 0) {
+  const candidates = repair
+    ? allRows.filter((r) => Boolean(r.payload.picks?.length))
+    : allRows.filter((r) => !isPredictionCombinationResolved(r.payload));
+
+  if (candidates.length === 0) {
     return Response.json({
       ok: true,
+      repair,
       processed: 0,
       checked: 0,
       at: new Date().toISOString(),
     });
   }
 
-  const ids = [...new Set(pending.map((r) => r.fixture_id))];
+  const ids = [...new Set(candidates.map((r) => r.fixture_id))];
   const fxById = await fetchNormalizedFixturesByIds(ids, key);
 
   let processed = 0;
+  let skippedUnchanged = 0;
   const notices: string[] = [];
 
-  for (const row of pending) {
+  for (const row of candidates) {
     const nf = fxById.get(row.fixture_id);
     if (!nf) {
       notices.push(`fixture ${row.fixture_id} indisponibil în API`);
       continue;
     }
 
-    const nextPayload = mergedPayloadWithSettlement(nf, row.payload);
+    const nextPayload = repair
+      ? recomputeSettlementPayloadFromFixture(nf, row.payload)
+      : mergedPayloadWithSettlement(nf, row.payload);
     if (!nextPayload) continue;
+
+    if (repair) {
+      const prevS = row.payload.settlement ?? "pending";
+      const nextS = nextPayload.settlement ?? "pending";
+      const prevPr = JSON.stringify(row.payload.calibrationOutcome?.pickResults ?? []);
+      const nextPr = JSON.stringify(nextPayload.calibrationOutcome?.pickResults ?? []);
+      if (prevS === nextS && prevPr === nextPr) {
+        skippedUnchanged += 1;
+        continue;
+      }
+    }
 
     const up = await upsertPrediction(sb, {
       fixture_id: row.fixture_id,
@@ -105,8 +133,10 @@ export async function GET(request: Request) {
 
   return Response.json({
     ok: true,
+    repair,
     processed,
-    checked: pending.length,
+    skippedUnchanged: repair ? skippedUnchanged : undefined,
+    checked: candidates.length,
     notices,
     at: new Date().toISOString(),
   });
