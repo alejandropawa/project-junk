@@ -439,6 +439,8 @@ const PredictionCardInner = ({
   /** Vizitator neautentificat la meci live: fără teaser cote / fără chenar „autentificare necesară”. */
   const lockedLiveGuest =
     showPredictionLock && fixture.bucket === "live";
+  const lockedGeneratedGuest =
+    lockedLiveGuest || guestUpcomingHasPredTeaser;
 
   /**
    * „Meci în cifre”: ascuns la meci neînceput fără predicție (altfel doar zerouri / fără sens).
@@ -648,7 +650,7 @@ const PredictionCardInner = ({
       ) : null}
 
       {/* 3 · PREDICȚIE — vizitator la live: doar mesaj autentificare (fără teaser / blur picioare) */}
-      {lockedLiveGuest ? (
+      {lockedGeneratedGuest ? (
         <section
           className={cn(
             "relative isolate min-w-0 overflow-hidden",
@@ -680,17 +682,7 @@ const PredictionCardInner = ({
                 : PREDICTION_LOCKED_GRADIENT,
           )}
         >
-        {showPredictionLock && guestUpcomingHasPredTeaser ? (
-          <div className="flex w-full min-w-0 flex-col items-center justify-center gap-5 px-4 py-10 text-center sm:px-6 sm:py-12 md:px-8">
-            <Timer
-              className="size-6 shrink-0 text-primary/70"
-              aria-hidden
-            />
-            <p className="w-full max-w-none text-pretty text-sm leading-[1.65] text-foreground/90 sm:text-[13px] sm:leading-relaxed">
-              {UPCOMING_AWAITING_MESSAGE}
-            </p>
-          </div>
-        ) : showPredictionLock ? (
+        {showPredictionLock ? (
           <div className="relative overflow-hidden px-4 py-6 sm:px-5 sm:py-7 md:py-8">
             <div className="pointer-events-none select-none blur-xl" aria-hidden>
               <div className="space-y-1.5 p-3">

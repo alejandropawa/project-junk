@@ -38,8 +38,8 @@ export function liveFixtureClockLabel(f: ClockFields): string | null {
   if (f.bucket !== "live") return null;
   const s = status(f.statusShort);
 
-  if (s === "HT" || s === "BREAK" || s === "BRK") return "Pauza";
-  if (s === "EXTRA_TIME_BREAK" || s === "ETB" || s === "BT") return "Pauza";
+  if (s === "HT" || s === "BREAK" || s === "BRK") return "Pauză";
+  if (s === "EXTRA_TIME_BREAK" || s === "ETB" || s === "BT") return "Pauză";
   if (s === "PEN_BREAK" || s === "PENB") return "Pauza pen.";
   if (s === "INPLAY_PENALTIES" || s === "PEN" || s === "P") return "Penalty-uri";
   if (s === "INPLAY_1ST_HALF" || s === "1ST" || s === "1H") {
