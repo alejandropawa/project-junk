@@ -17,10 +17,16 @@ export type FixtureLiveStatsSplit = {
   away: FixtureTeamLiveNumbers;
 };
 
+export type FixtureStatisticRow = {
+  typeId: number;
+  label: string;
+  home: number | null;
+  away: number | null;
+};
+
 export type NormalizedFixture = {
   id: number;
   leagueId: number;
-  /** Sezon competitiv în convenția API (ex. 2024 pentru 2024–25); folosit la /teams/statistics. */
   season: number;
   leagueName: string;
   leagueLogo: string | null;
@@ -38,8 +44,17 @@ export type NormalizedFixture = {
   homeGoals: number | null;
   awayGoals: number | null;
   bucket: FixtureBucket;
-  /** Statistici `/fixtures/statistics` (polling live sau final). */
   liveStatsSplit?: FixtureLiveStatsSplit;
+  liveStatistics?: FixtureStatisticRow[];
+  sportmonksPredictions?: SportmonksPrediction[];
+  sportmonksOdds?: SportmonksOdd[];
+};
+
+export type TrackedLeagueStatus = {
+  id: number;
+  displayName: string;
+  logo: string | null;
+  gamesToday: number;
 };
 
 export type TodayFixturesResult =
@@ -48,6 +63,7 @@ export type TodayFixturesResult =
       date: string;
       timezone: string;
       fixtures: NormalizedFixture[];
+      leagues: TrackedLeagueStatus[];
     }
   | {
       ok: false;
@@ -55,47 +71,91 @@ export type TodayFixturesResult =
       timezone: string;
       error: string;
       fixtures: [];
+      leagues: TrackedLeagueStatus[];
     };
 
-type ApiFixtureResponse = {
-  errors?: Record<string, string> | string[];
-  response?: ApiFixtureRow[];
+export type SportmonksType = {
+  id: number;
+  name: string;
+  code?: string | null;
+  developer_name?: string | null;
+  model_type?: string | null;
 };
 
-type ApiFixtureRow = {
-  fixture: {
-    id: number;
-    date: string;
-    timestamp: number;
-    status: {
-      short: string;
-      long: string;
-      elapsed: number | null;
-    };
-  };
-  league: {
+export type SportmonksPrediction = {
+  id: number;
+  fixture_id: number;
+  type_id: number;
+  predictions: Record<string, unknown>;
+  type?: SportmonksType;
+};
+
+export type SportmonksOdd = {
+  id: number;
+  fixture_id: number;
+  market_id: number;
+  bookmaker_id: number;
+  label: string | null;
+  value: string | number | null;
+  name: string | null;
+  market_description: string | null;
+  probability: string | null;
+  dp3: string | number | null;
+  total: string | null;
+  handicap: string | null;
+  stopped?: boolean;
+};
+
+export type SportmonksParticipant = {
+  id: number;
+  name: string;
+  image_path?: string | null;
+  meta?: {
+    location?: "home" | "away" | string;
+    winner?: boolean | null;
+    position?: number | null;
+  } | null;
+};
+
+export type SportmonksFixtureRow = {
+  id: number;
+  league_id: number;
+  season_id: number;
+  round_id?: number | null;
+  starting_at: string;
+  starting_at_timestamp: number;
+  name?: string | null;
+  has_odds?: boolean;
+  league?: {
     id: number;
     name: string;
-    logo: string;
-    season?: number;
-  };
-  teams: {
-    home: { id: number; name: string; logo: string };
-    away: { id: number; name: string; logo: string };
-  };
-  goals: {
-    home: number | null;
-    away: number | null;
-  };
-  /** Prezent în răspunsul `/fixtures` chiar dacă `/fixtures/statistics` e gol la unele ligii live. */
+    image_path?: string | null;
+  } | null;
+  participants?: SportmonksParticipant[];
+  scores?: Array<{
+    description?: string | null;
+    score?: {
+      goals?: number | null;
+      participant?: "home" | "away" | string | null;
+    } | null;
+  }>;
+  state?: {
+    state?: string | null;
+    name?: string | null;
+    short_name?: string | null;
+    developer_name?: string | null;
+  } | null;
+  periods?: Array<{
+    started?: number | null;
+    minutes?: number | null;
+  }>;
+  statistics?: Array<{
+    participant_id?: number | null;
+    type_id?: number | null;
+    data?: { value?: unknown } | null;
+    type?: SportmonksType | null;
+  }>;
   events?: readonly unknown[];
+  predictions?: SportmonksPrediction[];
+  odds?: SportmonksOdd[];
 };
-
-export function parseApiResponse(json: unknown): ApiFixtureResponse {
-  if (json && typeof json === "object" && "response" in json) {
-    return json as ApiFixtureResponse;
-  }
-  return {};
-}
-
-export type { ApiFixtureRow };

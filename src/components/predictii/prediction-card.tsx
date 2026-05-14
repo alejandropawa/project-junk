@@ -3,10 +3,8 @@
 import { motion, useReducedMotion } from "framer-motion";
 import {
   CircleMinus,
-  ListChecks,
   Lock,
   Timer,
-  TrendingUp,
 } from "lucide-react";
 import { memo, useMemo } from "react";
 import { combinedDecimalFromPicks } from "@/lib/predictions/combined-odds";
@@ -53,6 +51,9 @@ const PREDICTION_LOCKED_GRADIENT =
 const PREDICTION_AWAITING_SHELL =
   "rounded-xl border border-white/[0.05] bg-black/[0.14] dark:bg-black/[0.17]";
 
+const PREDICTION_PICK_LIST_CLASS =
+  "mt-3 grid min-h-[5.25rem] content-start gap-2.5";
+
 /** Aliniere ca `FixtureRow` (Meciuri): minut centru, LIVE dreapta, deasupra rândului scor. */
 const MATCH_STATUS_ROW =
   "flex min-w-0 items-center gap-x-2 sm:gap-x-4";
@@ -68,6 +69,7 @@ export type PredictionCardProps = {
   unlocked: boolean;
   prediction?: PredictionPayload;
   teaser?: PredictionPublicTeaser | null;
+  revealFinishedPublic?: boolean;
 };
 
 function formatClock(iso: string) {
@@ -317,7 +319,6 @@ function ComboProgressStrip({ rows }: { rows: LiveProgressRow[] }) {
         <p className="min-w-0 truncate text-[11px] font-medium uppercase tracking-wider text-foreground/70">
           Progres selecții
         </p>
-        <ListChecks className="size-4 shrink-0 text-primary/80" aria-hidden />
       </div>
       <ul className="mt-3 space-y-2.5">
         {rows.map((row) => {
@@ -366,6 +367,7 @@ const PredictionCardInner = ({
   unlocked,
   prediction,
   teaser,
+  revealFinishedPublic = true,
 }: PredictionCardProps) => {
   const reduceMotion = useReducedMotion();
   const sc = useMemo(() => scoreLine(fixture), [fixture]);
@@ -414,7 +416,7 @@ const PredictionCardInner = ({
 
   /** Predicții complete: utilizator în cont SAU meci final (combinatie publică rezultat). */
   const fullPredictionReveal =
-    unlocked || fixture.bucket === "finished";
+    unlocked || (revealFinishedPublic && fixture.bucket === "finished");
 
   const cardAccent =
     fullPredictionReveal && comboVisual === "won"
@@ -442,8 +444,7 @@ const PredictionCardInner = ({
    * Cu predicție (pre-live) sau live/final — afișăm ca înainte.
    */
   const showMeciInCifre =
-    !showPredictionLock &&
-    (fixture.bucket !== "upcoming" || Boolean(prediction?.picks?.length));
+    unlocked && Boolean(prediction?.picks?.length);
 
   const progressRowsForStrip = useMemo(() => {
     if (!prediction?.picks?.length) return [];
@@ -505,7 +506,7 @@ const PredictionCardInner = ({
       className={cn(
         "pb-prediction-card-shell group/card flex min-w-0 flex-col",
         SECTION_GAP,
-        "p-3 sm:p-3 md:p-3.5",
+        "h-full p-3 sm:p-3 md:p-3.5",
         cardAccent,
       )}
       aria-label={`${fixture.leagueName}. ${fixture.homeName} – ${fixture.awayName}. ${fixture.statusShort}`}
@@ -553,7 +554,7 @@ const PredictionCardInner = ({
                     <span
                       className={cn(
                         "block text-center text-xs font-medium text-destructive",
-                        liveClockLabel.endsWith("′")
+                        liveClockLabel.endsWith("'") || liveClockLabel.endsWith("′")
                           ? "tabular-nums"
                           : "tracking-tight",
                         LIVE_STATUS_PULSE,
@@ -803,12 +804,8 @@ const PredictionCardInner = ({
                 <p className="min-w-0 truncate text-[11px] font-medium uppercase tracking-wider text-foreground/70">
                   Predicție
                 </p>
-                <TrendingUp
-                  className="size-4 shrink-0 text-primary/80"
-                  aria-hidden
-                />
               </div>
-              <ul className="mt-3 space-y-2.5">
+              <ul className={PREDICTION_PICK_LIST_CLASS}>
                 {prediction!.picks!.map((p, i) => {
                   const ro = marketDisplayRo(p);
                   const pickLine = predictionPickLineRo(p);

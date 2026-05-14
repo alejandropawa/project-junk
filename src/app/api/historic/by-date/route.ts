@@ -35,17 +35,16 @@ export async function GET(req: Request) {
   }
 
   const rows = await fetchPredictionReportRowsForDate(admin, dateRo);
-  const filtered = user ? rows : rows.filter((r) => isPredictionCombinationResolved(r.payload));
+  const filtered = rows.filter((r) => isPredictionCombinationResolved(r.payload));
   const tier = user ? "full" : "public_resolved_only";
 
   const ids = [...new Set(filtered.map((r) => r.fixture_id))].filter(
     (n) => Number.isFinite(n) && n > 0,
   );
-  const apiKey = process.env.FOOTBALL_API_KEY?.trim();
   let fixtures_by_id: Record<string, NormalizedFixture> = {};
-  if (apiKey && ids.length > 0) {
+  if (ids.length > 0) {
     try {
-      const map = await fetchNormalizedFixturesByIds(ids, apiKey);
+      const map = await fetchNormalizedFixturesByIds(ids);
       fixtures_by_id = Object.fromEntries(
         [...map.entries()].map(([k, v]) => [String(k), v]),
       );

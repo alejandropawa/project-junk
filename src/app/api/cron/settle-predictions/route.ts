@@ -59,7 +59,6 @@ export async function GET(request: Request) {
 
   const secret = process.env.CRON_SECRET;
   const auth = request.headers.get("authorization");
-  const key = process.env.FOOTBALL_API_KEY?.trim();
 
   if (!secret?.trim()) {
     return Response.json(
@@ -70,13 +69,6 @@ export async function GET(request: Request) {
   if (auth !== `Bearer ${secret.trim()}`) {
     return Response.json({ ok: false, message: "Neautorizat" }, { status: 401 });
   }
-  if (!key) {
-    return Response.json(
-      { ok: false, message: "FOOTBALL_API_KEY lipsă." },
-      { status: 503 },
-    );
-  }
-
   const sb = createServiceRoleClient();
   if (!sb) {
     return Response.json(
@@ -123,7 +115,7 @@ export async function GET(request: Request) {
   }
 
   const ids = [...new Set(candidates.map((r) => r.fixture_id))];
-  const fxById = await fetchNormalizedFixturesByIds(ids, key);
+  const fxById = await fetchNormalizedFixturesByIds(ids);
 
   let processed = 0;
   let skippedUnchanged = 0;

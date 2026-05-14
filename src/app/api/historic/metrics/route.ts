@@ -23,10 +23,9 @@ export async function GET() {
     );
   }
 
-  let payloads = await fetchAllPredictionPayloadsForMetrics(admin);
-  if (!user) {
-    payloads = payloads.filter(isPredictionCombinationResolved);
-  }
+  const payloads = (await fetchAllPredictionPayloadsForMetrics(admin)).filter(
+    isPredictionCombinationResolved,
+  );
   const metrics = summarizeHistoricEngineMetrics(payloads);
   const tier = user ? "full" : "public_resolved_only";
   return Response.json({ ok: true, metrics, tier });

@@ -1,8 +1,5 @@
 import { revalidatePath } from "next/cache";
-import { fetchEventOdds, fetchOddsEventsWindow } from "@/lib/predictions/odds-api";
-import { decimalsPerMarketAcrossBookmakers } from "@/lib/predictions/odds-probix-map";
 import { engineOutputToPredictionPayload } from "@/lib/predictions/map-engine-output";
-import { matchOddsEventToFixture } from "@/lib/predictions/match-event";
 import {
   predictionExists,
   upsertPrediction,
@@ -35,35 +32,6 @@ function resolveFixtureFilter(req: Request, bodyFixture: unknown): number | null
   }
 
   return null;
-}
-
-async function tryEnrichOdds(
-  f: { homeName: string; awayName: string; timestamp: number },
-  kickMs: number,
-  bookmakers: string,
-): Promise<{ oddsApiEventId: number; oddsBody: Awaited<ReturnType<typeof fetchEventOdds>> | null }> {
-  const oddsKey = process.env.ODDS_API_KEY?.trim();
-  if (!oddsKey) return { oddsApiEventId: 0, oddsBody: null };
-
-  const fromIso = new Date(kickMs - 2 * 3600 * 1000).toISOString();
-  const toIso = new Date(kickMs + 2 * 3600 * 1000).toISOString();
-
-  try {
-    const events = await fetchOddsEventsWindow(oddsKey, fromIso, toIso);
-    const matched = matchOddsEventToFixture(
-      events,
-      f.homeName,
-      f.awayName,
-      f.timestamp,
-    );
-    const oddsApiEventId = matched?.id ?? 0;
-    if (!matched)
-      return { oddsApiEventId: 0, oddsBody: null };
-    const oddsBody = await fetchEventOdds(oddsKey, matched.id, bookmakers);
-    return { oddsApiEventId, oddsBody };
-  } catch {
-    return { oddsApiEventId: 0, oddsBody: null };
-  }
 }
 
 /**
@@ -103,8 +71,6 @@ async function handle(
 
   const secret = process.env.CRON_SECRET;
   const auth = req.headers.get("authorization");
-  const bookmakers =
-    process.env.ODDS_API_BOOKMAKERS?.trim() ?? "Bet365,Unibet";
 
   if (!secret?.trim()) {
     return Response.json(
@@ -198,27 +164,7 @@ async function handle(
   for (const f of targets) {
     if (!overwrite && (await predictionExists(sb, f.id, data.date))) continue;
 
-    const kickMs = f.timestamp * 1000;
-
-    let oddsApiEventId = 0;
-    let oddsBody: Awaited<ReturnType<typeof fetchEventOdds>> | null = null;
-    const oddsByMarketId = new Map<string, number>();
-    if (process.env.ODDS_API_KEY?.trim()) {
-      const r = await tryEnrichOdds(f, kickMs, bookmakers);
-      oddsApiEventId = r.oddsApiEventId;
-      oddsBody = r.oddsBody;
-      if (oddsBody) {
-        for (const [k, v] of decimalsPerMarketAcrossBookmakers(
-          oddsBody,
-          bookmakers,
-        )) {
-          oddsByMarketId.set(k, v);
-        }
-      }
-    }
-
     const engineOut = await runProbixEngine(f, {
-      oddsByMarketId,
       learning: learningCtx,
     });
     if (!engineOut) {
@@ -227,7 +173,7 @@ async function handle(
     }
 
     const payload = engineOutputToPredictionPayload(engineOut, {
-      oddsApiEventId,
+      oddsApiEventId: 0,
       fixtureId: f.id,
       leagueId: f.leagueId,
       leagueName: f.leagueName,

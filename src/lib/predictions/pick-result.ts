@@ -65,6 +65,62 @@ function evaluateHalfTotal(
   return finished ? "won" : "pending";
 }
 
+function evaluateSportmonksPick(
+  fixture: Pick<
+    NormalizedFixture,
+    "bucket" | "homeGoals" | "awayGoals" | "liveStatsSplit" | "statusShort"
+  >,
+  pick: PredictionPick,
+  finished: boolean,
+): PickResult | null {
+  if (!pick.marketId?.startsWith("sm:")) return null;
+  const [, typeIdRaw, side] = pick.marketId.split(":");
+  const typeId = Number(typeIdRaw);
+  const h = fixture.homeGoals;
+  const a = fixture.awayGoals;
+  if (h == null || a == null) return "pending";
+  const total = h + a;
+
+  const ouLineByType: Record<number, number> = {
+    234: 1.5,
+    235: 2.5,
+    236: 3.5,
+    1679: 4.5,
+    334: 0.5,
+    331: 1.5,
+    333: 0.5,
+    332: 1.5,
+  };
+  const line = ouLineByType[typeId];
+  if (line != null) {
+    const value =
+      typeId === 334 || typeId === 331
+        ? h
+        : typeId === 333 || typeId === 332
+          ? a
+          : total;
+    return evaluateHalfTotal(side === "yes", line, value, finished);
+  }
+
+  if (typeId === 231) {
+    const yes = h >= 1 && a >= 1;
+    if (side === "yes") return yes ? "won" : finished ? "lost" : "pending";
+    return yes ? "lost" : finished ? "won" : "pending";
+  }
+
+  if (!finished) return "pending";
+  if (typeId === 237) {
+    const actual = h > a ? "home" : h < a ? "away" : "draw";
+    return side === actual ? "won" : "lost";
+  }
+  if (typeId === 239) {
+    if (side === "draw_home") return h >= a ? "won" : "lost";
+    if (side === "draw_away") return a >= h ? "won" : "lost";
+    if (side === "home_away") return h !== a ? "won" : "lost";
+  }
+  return null;
+}
+
 export function evaluatePickResult(
   fixture: Pick<
     NormalizedFixture,
@@ -81,6 +137,9 @@ export function evaluatePickResult(
   const finished =
     fixture.bucket === "finished" &&
     isTerminalFixtureStatus(fixture.statusShort);
+
+  const sportmonksResult = evaluateSportmonksPick(fixture, pick, finished);
+  if (sportmonksResult) return sportmonksResult;
 
   const spec = pick.marketId ? parseTotalsOuMarketId(pick.marketId) : null;
   if (spec) {

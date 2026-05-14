@@ -1,6 +1,5 @@
 import { revalidatePath } from "next/cache";
 import type { SupabaseClient } from "@supabase/supabase-js";
-import { enrichFixturesWithLiveStatistics } from "@/lib/football-api/enrich-fixtures-live-statistics";
 import { fetchFixtureByIdFresh } from "@/lib/football-api/fetch-fixture-by-id";
 import { engineOutputToPredictionPayload } from "@/lib/predictions/map-engine-output";
 import {
@@ -112,8 +111,6 @@ export async function GET(req: Request) {
   const truncatedByLimit =
     limit != null ? Math.max(0, rowsAll.length - rows.length) : 0;
 
-  const oddsByMarketId = new Map<string, number>();
-
   async function processOne(
     row: (typeof rows)[0],
     db: SupabaseClient,
@@ -125,15 +122,9 @@ export async function GET(req: Request) {
       return "fail";
     }
 
-    const [enriched] = await enrichFixturesWithLiveStatistics(
-      [fx.fixture],
-      4,
-    );
-
     let engineOut: Awaited<ReturnType<typeof runProbixEngine>> | null = null;
     for (let a = 0; a < ENGINE_ATTEMPTS; a++) {
-      engineOut = await runProbixEngine(enriched, {
-        oddsByMarketId,
+      engineOut = await runProbixEngine(fx.fixture, {
         learning: learningCtx,
       });
       if (engineOut) break;
@@ -146,9 +137,9 @@ export async function GET(req: Request) {
     }
 
     const fresh = engineOutputToPredictionPayload(engineOut, {
-      fixtureId: enriched.id,
-      leagueId: enriched.leagueId,
-      leagueName: enriched.leagueName,
+      fixtureId: fx.fixture.id,
+      leagueId: fx.fixture.leagueId,
+      leagueName: fx.fixture.leagueName,
       oddsApiEventId: prev.oddsApiEventId ?? 0,
     });
 
@@ -204,6 +195,6 @@ export async function GET(req: Request) {
     noticeTruncated: notices.length > 80,
     at: new Date().toISOString(),
     hint:
-      "Rulează pe **același** proiect unde ai `SUPABASE_SERVICE_ROLE_KEY` + `FOOTBALL_API_KEY` + `CRON_SECRET` (localhost `.env.local` sau Vercel prod). Prod: apelează URL-ul de producție cu secretul din env-ul de producție.",
+      "Rulează pe **același** proiect unde ai `SUPABASE_SERVICE_ROLE_KEY` + `SPORTMONKS_API_TOKEN` + `CRON_SECRET` (localhost `.env.local` sau Vercel prod). Prod: apelează URL-ul de producție cu secretul din env-ul de producție.",
   });
 }

@@ -104,7 +104,7 @@ export function FixtureRow({
               <span
                 className={cn(
                   "block text-center text-xs font-medium text-destructive",
-                  clockLabel.endsWith("′")
+                  clockLabel.endsWith("'") || clockLabel.endsWith("′")
                     ? "tabular-nums"
                     : "tracking-tight",
                   LIVE_STATUS_PULSE,

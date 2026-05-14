@@ -1,5 +1,6 @@
 import type {
   FixtureLiveStatsSplit,
+  FixtureStatisticRow,
   FixtureTeamLiveNumbers,
   NormalizedFixture,
 } from "@/lib/football-api/types";
@@ -59,6 +60,51 @@ function mergeLiveStatsSplitMonotonic(
 }
 
 /** Minut și scor stabile între polling-uri dacă API returnează valori întârziate. */
+function finiteNum(v: number | null | undefined): number | null {
+  return typeof v === "number" && Number.isFinite(v) ? v : null;
+}
+
+function mergeStatValue(
+  prev: number | null | undefined,
+  next: number | null | undefined,
+  isPossession: boolean,
+): number | null {
+  const a = finiteNum(prev);
+  const b = finiteNum(next);
+  if (isPossession) return b ?? a;
+  if (a != null && b != null) return Math.max(a, b);
+  return b ?? a;
+}
+
+function mergeLiveStatisticRowsMonotonic(
+  prev: FixtureStatisticRow[] | undefined,
+  next: FixtureStatisticRow[] | undefined,
+): FixtureStatisticRow[] | undefined {
+  if (!prev?.length) return next;
+  if (!next?.length) return prev;
+
+  const byType = new Map<number, FixtureStatisticRow>();
+  for (const row of prev) byType.set(row.typeId, row);
+
+  for (const row of next) {
+    const old = byType.get(row.typeId);
+    if (!old) {
+      byType.set(row.typeId, row);
+      continue;
+    }
+
+    const isPossession = row.typeId === 45;
+    byType.set(row.typeId, {
+      typeId: row.typeId,
+      label: row.label || old.label,
+      home: mergeStatValue(old.home, row.home, isPossession),
+      away: mergeStatValue(old.away, row.away, isPossession),
+    });
+  }
+
+  return [...byType.values()].sort((a, b) => a.typeId - b.typeId);
+}
+
 function monotonicMinute(
   prevMinute: number | null,
   nextMinute: number | null,
@@ -105,6 +151,10 @@ export function mergeFixturePatch(
         minute: p.minute ?? f.minute,
         liveStatsSplit:
           split !== undefined ? split : p.liveStatsSplit ?? f.liveStatsSplit,
+        liveStatistics: mergeLiveStatisticRowsMonotonic(
+          f.liveStatistics,
+          p.liveStatistics,
+        ),
       };
     }
 
@@ -128,6 +178,10 @@ export function mergeFixturePatch(
         ),
         liveStatsSplit:
           split !== undefined ? split : p.liveStatsSplit ?? f.liveStatsSplit,
+        liveStatistics: mergeLiveStatisticRowsMonotonic(
+          f.liveStatistics,
+          p.liveStatistics,
+        ),
       };
     }
 
@@ -158,6 +212,10 @@ export function mergeFixturePatch(
         merged.liveStatsSplit =
           p.liveStatsSplit !== undefined ? p.liveStatsSplit : f.liveStatsSplit;
       }
+      merged.liveStatistics = mergeLiveStatisticRowsMonotonic(
+        f.liveStatistics,
+        p.liveStatistics,
+      );
     }
 
     return merged;

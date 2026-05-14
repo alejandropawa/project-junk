@@ -15,7 +15,6 @@ import {
 } from "@/lib/football-api/live-poll-client";
 import { mergeFixturePatch } from "@/lib/football-api/merge-fixture-patch";
 import type { NormalizedFixture } from "@/lib/football-api/types";
-import { isDummyPredictiiFixtureId } from "@/lib/predictii/dummy-preview";
 import { isPredictionCombinationResolved } from "@/lib/predictions/prediction-access";
 import { cn } from "@/lib/utils";
 
@@ -149,7 +148,7 @@ export function PredictiiFixturesView({
   const shouldPollFixturesLiveApi = useMemo(() => {
     const hasLive = fixtures.some((f) => f.bucket === "live");
     const hasFinishedPendingCombo = fixtures.some((f) => {
-      if (f.bucket !== "finished" || isDummyPredictiiFixtureId(f.id)) return false;
+      if (f.bucket !== "finished") return false;
       const p = predictionsByFixtureId[f.id];
       return Boolean(
         p?.picks?.length && !isPredictionCombinationResolved(p),
@@ -168,15 +167,12 @@ export function PredictiiFixturesView({
       if (cancelled) return;
       const liveIds = fixturesRef.current
         .filter((f) => f.bucket === "live")
-        .filter((f) => !isDummyPredictiiFixtureId(f.id))
         .map((f) => f.id);
       const imminentKickoffIds = fixturesRef.current
         .filter(upcomingFixtureWithinKickoffPollWindow)
-        .filter((f) => !isDummyPredictiiFixtureId(f.id))
         .map((f) => f.id);
       const finishedPendingIds = fixturesRef.current
         .filter((f) => f.bucket === "finished")
-        .filter((f) => !isDummyPredictiiFixtureId(f.id))
         .filter((f) => {
           const p = predictionsByFixtureIdRef.current[f.id];
           return Boolean(
@@ -301,13 +297,14 @@ export function PredictiiFixturesView({
                   {group.leagueName}
                 </h2>
               </div>
-              <div className="grid grid-cols-1 gap-2 [grid-auto-rows:minmax(0,_auto)] md:grid-cols-2 md:gap-2.5 [&>*]:min-w-0">
+              <div className="grid grid-cols-1 gap-2 [grid-auto-rows:minmax(0,_auto)] md:grid-cols-2 md:[grid-auto-rows:1fr] md:gap-2.5 [&>*]:min-w-0 [&>*]:h-full">
                 {group.items.map((fx) => (
                   <PredictionCard
                     key={fx.id}
                     fixture={fx}
                     unlocked={predictionsUnlocked}
                     prediction={predictionsByFixtureId[fx.id]}
+                    revealFinishedPublic={false}
                     teaser={
                       !predictionsUnlocked
                         ? predictionTeasersByFixtureId?.[fx.id]

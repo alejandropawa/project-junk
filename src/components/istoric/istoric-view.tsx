@@ -211,9 +211,7 @@ export function IstoricView({ todayRo }: IstoricViewProps) {
           ) : rows.length === 0 ? (
             <Card staticSurface className="border-dashed p-6 text-center">
               <p className="pb-text-body">
-                {isPublicTier
-                  ? "Nu există combinații deja rezolvate în date pentru această zi (sau istoric încă nepopulat)."
-                  : "Nu există predicții înregistrate pentru această dată."}
+                Nu există predicții înregistrate pentru această dată.
               </p>
             </Card>
           ) : (

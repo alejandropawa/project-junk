@@ -24,9 +24,7 @@ export async function GET() {
     );
   }
 
-  const dates = user
-    ? await fetchDistinctPredictionDatesRo(admin)
-    : await fetchDistinctPredictionDateRosResolvedPublic(admin);
+  const dates = await fetchDistinctPredictionDateRosResolvedPublic(admin);
 
   const tier = user ? "full" : "public_resolved_only";
   return Response.json({ ok: true, dates, tier });
