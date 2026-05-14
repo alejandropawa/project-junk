@@ -39,6 +39,7 @@ export function toSyntheticFinishedFixture(
     statusShort: "FT",
     statusLong: "Meci terminat",
     minute: 90,
+    addedTime: null,
     homeTeamId: 0,
     awayTeamId: 0,
     homeName: row.home_name,

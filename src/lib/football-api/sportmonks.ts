@@ -151,6 +151,14 @@ function currentMinute(row: SportmonksFixtureRow, statusShort: string): number |
   return normalizeMinuteForState(raw, statusShort);
 }
 
+function currentAddedTime(row: SportmonksFixtureRow): number | null {
+  const period = [...(row.periods ?? [])]
+    .filter((p) => typeof p.minutes === "number" || typeof p.time_added === "number")
+    .sort((a, b) => (b.started ?? 0) - (a.started ?? 0))[0];
+  const raw = typeof period?.time_added === "number" ? period.time_added : null;
+  return raw != null && raw > 0 ? Math.round(raw) : null;
+}
+
 function num(raw: unknown): number | null {
   if (typeof raw === "number" && Number.isFinite(raw)) return raw;
   if (typeof raw !== "string") return null;
@@ -239,6 +247,7 @@ export function normalizeSportmonksFixtureRow(row: SportmonksFixtureRow): Normal
     statusShort: stateShort,
     statusLong: row.state?.name ?? stateShort,
     minute: currentMinute(row, stateShort),
+    addedTime: currentAddedTime(row),
     homeTeamId: home?.id ?? 0,
     awayTeamId: away?.id ?? 0,
     homeName: home?.name ?? "Gazde",

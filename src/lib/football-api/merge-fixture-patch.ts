@@ -149,6 +149,7 @@ export function mergeFixturePatch(
         homeGoals: p.homeGoals ?? f.homeGoals,
         awayGoals: p.awayGoals ?? f.awayGoals,
         minute: p.minute ?? f.minute,
+        addedTime: p.addedTime ?? f.addedTime,
         liveStatsSplit:
           split !== undefined ? split : p.liveStatsSplit ?? f.liveStatsSplit,
         liveStatistics: mergeLiveStatisticRowsMonotonic(
@@ -191,6 +192,7 @@ export function mergeFixturePatch(
 
     if (p.bucket === "live") {
       merged.minute = monotonicMinute(f.minute, p.minute, f.bucket);
+      merged.addedTime = p.addedTime ?? f.addedTime;
       merged.homeGoals = monotonicGoals(
         f.homeGoals,
         p.homeGoals,

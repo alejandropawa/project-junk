@@ -269,6 +269,7 @@ function progressBarFillPercent(row: LiveProgressRow): number {
   if (row.status === "awaiting_data" || row.ratio == null) {
     return PROGRESS_BAR_MIN_PCT + 3;
   }
+  if (row.ratio >= 1) return 100;
   /**
    * Peste linie (goluri, cornere, etc.): la 0 față de țintă (ex. 0/3) — pistă goală,
    * nu bară „minimă” care sugerează progres inexistent.

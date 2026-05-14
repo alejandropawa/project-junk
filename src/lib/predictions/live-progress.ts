@@ -33,6 +33,8 @@ function ceilHalfLine(line: number): number {
   return Math.ceil(line - 1e-9);
 }
 
+const PROGRESS_EPS = 1e-9;
+
 function foulsLive(f: FixtureSlice): number | null {
   const h = f.liveStatsSplit?.home.fouls;
   const a = f.liveStatsSplit?.away.fouls;
@@ -101,7 +103,7 @@ function pushHalfOuProgressRow(
 
   if (over) {
     const need = ceilHalfLine(line);
-    if (raw >= need) {
+    if (raw + PROGRESS_EPS >= need) {
       rows.push({
         id,
         label: baseLabel,
@@ -138,7 +140,7 @@ function pushHalfOuProgressRow(
     rows.push({
       id,
       label: baseLabel,
-      detail: `${cur} / ${maxOk} ${u}`,
+      detail: `${cur} ${u} (limită ${maxOk})`,
       ratio: 0,
       status: "failed",
     });
@@ -155,8 +157,8 @@ function pushHalfOuProgressRow(
     rows.push({
       id,
       label: baseLabel,
-      detail: `${cur} / ${maxOk} ${u}`,
-      ratio: Math.min(1, (maxOk - raw + (facet === "goals" ? 0.3 : 0.5)) / maxOk),
+      detail: `${cur} ${u} (limită ${maxOk})`,
+      ratio: 0.5,
       status: "pending",
     });
   }
@@ -167,6 +169,142 @@ export type LiveProgressOpts = {
   cardsTotal?: number | null;
   foulsTotal?: number | null;
 };
+
+function pushSportmonksProgressRow(
+  rows: LiveProgressRow[],
+  id: string,
+  baseLabel: string,
+  fixture: FixtureSlice,
+  typeId: number,
+  side: string,
+  finished: boolean,
+): boolean {
+  const hk = fixture.homeGoals;
+  const ak = fixture.awayGoals;
+  const knownScore = hk != null && ak != null;
+  if (!knownScore || hk == null || ak == null) {
+    rows.push({
+      id,
+      label: baseLabel,
+      detail: "",
+      ratio: 0,
+      status: "pending",
+    });
+    return true;
+  }
+
+  const total = hk + ak;
+  const scoreDetail = `${hk}-${ak}`;
+  const ouLineByType: Record<number, { line: number; value: number; unit: string }> = {
+    234: { line: 1.5, value: total, unit: "goluri" },
+    235: { line: 2.5, value: total, unit: "goluri" },
+    236: { line: 3.5, value: total, unit: "goluri" },
+    1679: { line: 4.5, value: total, unit: "goluri" },
+    334: { line: 0.5, value: hk, unit: "goluri gazde" },
+    331: { line: 1.5, value: hk, unit: "goluri gazde" },
+    333: { line: 0.5, value: ak, unit: "goluri oaspeți" },
+    332: { line: 1.5, value: ak, unit: "goluri oaspeți" },
+  };
+
+  const ou = ouLineByType[typeId];
+  if (ou) {
+    const before = rows.length;
+    pushHalfOuProgressRow(
+      rows,
+      id,
+      baseLabel,
+      "goals",
+      side === "yes",
+      ou.line,
+      ou.value,
+      finished,
+    );
+    const last = rows[before];
+    if (last && ou.unit !== "goluri") {
+      last.detail = last.detail.replace("goluri", ou.unit);
+      if (!last.detail && last.status === "complete" && side === "yes") {
+        const need = ceilHalfLine(ou.line);
+        last.detail = `${Math.round(ou.value)} / ${need} ${ou.unit}`;
+      }
+      if (last.status === "pending" && side === "no") {
+        const maxOk = Math.floor(ou.line + 1e-9);
+        last.detail = `${Math.round(ou.value)} ${ou.unit} (limită ${maxOk})`;
+      }
+    }
+    return true;
+  }
+
+  if (typeId === 231) {
+    const yesNow = hk >= 1 && ak >= 1;
+    const pickYes = side === "yes";
+    const won = pickYes ? yesNow : !yesNow && finished;
+    const lost = pickYes ? finished && !yesNow : yesNow;
+    rows.push({
+      id,
+      label: baseLabel,
+      detail: won ? "" : scoreDetail,
+      ratio: won ? 1 : lost ? 0 : yesNow ? 0 : hk >= 1 || ak >= 1 ? 0.45 : 0.08,
+      status: won ? "complete" : lost ? "failed" : "pending",
+    });
+    return true;
+  }
+
+  if (typeId === 237) {
+    if (!finished) {
+      const leadsNow =
+        side === "home" ? hk > ak : side === "away" ? ak > hk : hk === ak;
+      rows.push({
+        id,
+        label: baseLabel,
+        detail: scoreDetail,
+        ratio: leadsNow ? 0.55 : 0.2,
+        status: "pending",
+      });
+      return true;
+    }
+    const actual = hk > ak ? "home" : hk < ak ? "away" : "draw";
+    const ok = side === actual;
+    rows.push({
+      id,
+      label: baseLabel,
+      detail: ok ? "" : scoreDetail,
+      ratio: ok ? 1 : 0,
+      status: ok ? "complete" : "failed",
+    });
+    return true;
+  }
+
+  if (typeId === 239) {
+    const okNow =
+      side === "draw_home"
+        ? hk >= ak
+        : side === "draw_away"
+          ? ak >= hk
+          : side === "home_away"
+            ? hk !== ak
+            : false;
+    if (!finished) {
+      rows.push({
+        id,
+        label: baseLabel,
+        detail: "",
+        ratio: okNow ? 0.5 : 0,
+        status: "pending",
+      });
+      return true;
+    }
+    rows.push({
+      id,
+      label: baseLabel,
+      detail: okNow ? "" : scoreDetail,
+      ratio: okNow ? 1 : 0,
+      status: okNow ? "complete" : "failed",
+    });
+    return true;
+  }
+
+  return false;
+}
 
 function labelForPick(pick: PredictionPick): string {
   return predictionPickLineRo(pick);
@@ -195,6 +333,25 @@ export function deriveLiveProgressRows(
     const pick = picks[i];
     const id = pick.marketId ?? `pick_${i}_${pick.selection}`;
     const baseLabel = labelForPick(pick);
+
+    if (pick.marketId?.startsWith("sm:")) {
+      const [, typeIdRaw, side] = pick.marketId.split(":");
+      const typeId = Number(typeIdRaw);
+      if (
+        Number.isFinite(typeId) &&
+        pushSportmonksProgressRow(
+          rows,
+          id,
+          baseLabel,
+          fixture,
+          typeId,
+          side,
+          finished,
+        )
+      ) {
+        continue;
+      }
+    }
 
     const spec = pick.marketId
       ? parseTotalsOuMarketId(pick.marketId)

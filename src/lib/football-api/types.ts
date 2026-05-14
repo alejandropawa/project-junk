@@ -35,6 +35,7 @@ export type NormalizedFixture = {
   statusShort: string;
   statusLong: string;
   minute: number | null;
+  addedTime: number | null;
   homeTeamId: number;
   awayTeamId: number;
   homeName: string;
@@ -147,6 +148,7 @@ export type SportmonksFixtureRow = {
   } | null;
   periods?: Array<{
     started?: number | null;
+    time_added?: number | null;
     minutes?: number | null;
   }>;
   statistics?: Array<{
