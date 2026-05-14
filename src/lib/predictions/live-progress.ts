@@ -251,13 +251,11 @@ function pushSportmonksProgressRow(
 
   if (typeId === 237) {
     if (!finished) {
-      const leadsNow =
-        side === "home" ? hk > ak : side === "away" ? ak > hk : hk === ak;
       rows.push({
         id,
         label: baseLabel,
-        detail: scoreDetail,
-        ratio: leadsNow ? 0.55 : 0.2,
+        detail: "",
+        ratio: 0,
         status: "pending",
       });
       return true;
@@ -288,7 +286,7 @@ function pushSportmonksProgressRow(
         id,
         label: baseLabel,
         detail: "",
-        ratio: okNow ? 0.5 : 0,
+        ratio: 0,
         status: "pending",
       });
       return true;
@@ -444,24 +442,22 @@ export function deriveLiveProgressRows(
           });
         break;
       }
-      /** Șansă dublă / rezultat la fluier: bară 50% până la final; 100% câștig, 50% eșec. */
+      /** Șansă dublă / rezultat la fluier: bară goală până la final; apoi câștigă sau pierde clar. */
       case "dc_1x": {
         if (!knownScore || hk == null || ak == null)
           rows.push({
             id,
             label: baseLabel,
             detail: "1X",
-            ratio: 0.5,
+            ratio: 0,
             status: "pending",
           });
         else if (!finished) {
-          // Dacă scorul curent ar pierde selecția, arătăm 0% (altfel 50% până la final).
-          const okNow = hk >= ak; // 1X ⇒ gazda nu pierde
           rows.push({
             id,
             label: baseLabel,
             detail: "",
-            ratio: okNow ? 0.5 : 0,
+            ratio: 0,
             status: "pending",
           });
         }
@@ -483,16 +479,15 @@ export function deriveLiveProgressRows(
             id,
             label: baseLabel,
             detail: "X2",
-            ratio: 0.5,
+            ratio: 0,
             status: "pending",
           });
         else if (!finished) {
-          const okNow = ak >= hk; // X2 ⇒ oaspeții nu pierd
           rows.push({
             id,
             label: baseLabel,
             detail: "",
-            ratio: okNow ? 0.5 : 0,
+            ratio: 0,
             status: "pending",
           });
         }
@@ -514,17 +509,15 @@ export function deriveLiveProgressRows(
             id,
             label: baseLabel,
             detail: "12 — rezultat la final",
-            ratio: 0.5,
+            ratio: 0,
             status: "pending",
           });
         else if (!finished) {
-          // 12 ⇒ fără egal la fluier. Dacă acum e egal, ar pierde selecția dacă s-ar termina acum.
-          const okNow = hk !== ak;
           rows.push({
             id,
             label: baseLabel,
             detail: "",
-            ratio: okNow ? 0.5 : 0,
+            ratio: 0,
             status: "pending",
           });
         }
@@ -546,7 +539,7 @@ export function deriveLiveProgressRows(
           label: baseLabel,
           detail: "",
           /** Piețe tip rezultat necunoscute în motor — același neutral ca șanse duble până avem logică dedicată. */
-          ratio: 0.5,
+          ratio: 0,
           status: "pending",
         });
     }
@@ -555,7 +548,7 @@ export function deriveLiveProgressRows(
   /**
    * Pre-live:
    * - fără text auxiliar sub etichetă
-   * - toate barele pornesc de la 0% (inclusiv 1X / X2 / 12 etc.)
+   * - barele pornesc goale până există progres sau settlement.
    */
   if (fixture.bucket === "upcoming") {
     return rows.map((r) => {

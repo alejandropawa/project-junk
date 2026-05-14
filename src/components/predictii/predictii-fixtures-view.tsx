@@ -304,7 +304,6 @@ export function PredictiiFixturesView({
                     fixture={fx}
                     unlocked={predictionsUnlocked}
                     prediction={predictionsByFixtureId[fx.id]}
-                    revealFinishedPublic={false}
                     teaser={
                       !predictionsUnlocked
                         ? predictionTeasersByFixtureId?.[fx.id]

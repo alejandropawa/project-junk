@@ -259,15 +259,12 @@ const PROGRESS_BAR_MIN_PCT = 5;
 
 function progressBarFillPercent(row: LiveProgressRow): number {
   if (row.status === "complete") return 100;
-  if (row.status === "failed") {
-    const r =
-      row.ratio != null
-        ? Math.round(Math.min(1, Math.max(0, row.ratio)) * 100)
-        : 0;
-    return Math.max(PROGRESS_BAR_MIN_PCT, r);
-  }
+  if (row.status === "failed") return 100;
   if (row.status === "awaiting_data" || row.ratio == null) {
     return PROGRESS_BAR_MIN_PCT + 3;
+  }
+  if (row.status === "pending" && row.ratio === 0.5) {
+    return 0;
   }
   if (row.ratio >= 1) return 100;
   /**
@@ -324,11 +321,12 @@ function ComboProgressStrip({ rows }: { rows: LiveProgressRow[] }) {
       <ul className="mt-3 space-y-2.5">
         {rows.map((row) => {
           const pct = progressBarFillPercent(row);
-          const fail = row.status === "failed";
-          const fill = fail
-            ? "bg-red-400/45"
-            : "bg-gradient-to-r from-primary/80 to-probix-purple/70";
-          const showDetail = row.detail.trim().length > 0;
+          const fill =
+            row.status === "failed"
+              ? "bg-red-500/80"
+              : row.status === "complete"
+                ? "bg-emerald-500/80"
+                : "bg-gradient-to-r from-primary/80 to-probix-purple/70";
 
           return (
             <li key={row.id} className="min-w-0 space-y-2">
@@ -338,11 +336,6 @@ function ComboProgressStrip({ rows }: { rows: LiveProgressRow[] }) {
                 </span>
                 {progressStatusLabel(row)}
               </div>
-              {showDetail ? (
-                <p className="text-[13px] leading-relaxed text-foreground-muted">
-                  {row.detail}
-                </p>
-              ) : null}
               <div className="h-1.5 w-full overflow-hidden rounded-full bg-muted/60">
                 <motion.div
                   className={cn("h-full rounded-full", fill)}
@@ -387,11 +380,6 @@ const PredictionCardInner = ({
       ? Math.round(prediction.confidenceAvg * 100)
       : null);
 
-  const teaserConf =
-    teaser && !unlocked ? teaser.confidenceScore : null;
-  const teaserOdds =
-    teaser && !unlocked ? teaser.estimatedCombinedDecimal : null;
-
   const derivedLiveTotals = useMemo(() => liveTotalsFromFixture(fixture), [fixture]);
 
   /**
@@ -427,7 +415,6 @@ const PredictionCardInner = ({
         : undefined;
 
   const showPredictionLock = !fullPredictionReveal;
-  const hasTeaserOutline = Boolean(teaser) && showPredictionLock;
   /**
    * Vizitator + urmează + există predicție (teaser / picioare): același layout ca „fără predicție încă”
    * — fără cote indicative, fără blur autentificare în chenarul principal.
@@ -447,7 +434,7 @@ const PredictionCardInner = ({
    * Cu predicție (pre-live) sau live/final — afișăm ca înainte.
    */
   const showMeciInCifre =
-    unlocked && Boolean(prediction?.picks?.length);
+    fullPredictionReveal && Boolean(prediction?.picks?.length);
 
   const progressRowsForStrip = useMemo(() => {
     if (!prediction?.picks?.length) return [];
@@ -618,32 +605,6 @@ const PredictionCardInner = ({
       </section>
 
       <div className="h-px w-full bg-border/35" aria-hidden />
-
-      {showPredictionLock &&
-      hasTeaserOutline &&
-      !lockedLiveGuest &&
-      !guestUpcomingHasPredTeaser ? (
-        <div className="rounded-xl border border-border/45 bg-muted/15 px-3 py-2 sm:px-3.5">
-          <div className="flex flex-wrap items-baseline gap-x-3 gap-y-1 text-[13px] text-foreground/88">
-            {teaserConf != null ? (
-              <span>
-                Încredere indicativă{" "}
-                <span className="font-semibold tabular-nums text-foreground/92">
-                  {teaserConf}%
-                </span>
-              </span>
-            ) : null}
-            {teaserOdds != null ? (
-              <span className={cn(teaserConf != null && "sm:border-l sm:border-border/50 sm:pl-6")}>
-                Cotă estimată{" "}
-                <span className="font-semibold tabular-nums text-foreground/92">
-                  {teaserOdds.toFixed(2)}
-                </span>
-              </span>
-            ) : null}
-          </div>
-        </div>
-      ) : null}
 
       {showMeciInCifre ? (
         <PredictionCardLiveMetrics fixture={fixture} />
@@ -829,22 +790,6 @@ const PredictionCardInner = ({
         <ComboProgressStrip rows={progressRowsForStrip} />
       ) : null}
 
-      {showPredictionLock &&
-      teaser &&
-      !lockedLiveGuest &&
-      !guestUpcomingHasPredTeaser ? (
-        <div className="relative overflow-hidden rounded-xl border border-border/40 px-2.5 py-2">
-          <div className="blur-md select-none" aria-hidden>
-            <p className="text-[13px] leading-relaxed text-foreground-secondary">
-              Context ofensiv, cornere cumulative și distribuție cartonașe din feed
-              live…
-            </p>
-          </div>
-          <p className="pointer-events-none absolute inset-0 flex items-center justify-center bg-background/50 px-4 text-center text-[11px] font-medium text-foreground-muted backdrop-blur-sm">
-            Autentificare necesară
-          </p>
-        </div>
-      ) : null}
     </article>
   );
 };
