@@ -3,6 +3,7 @@ import {
   normalizeSportmonksFixtureRow,
   sportmonksFetch,
   trackedFixtureInclude,
+  trackedFixtureUiInclude,
 } from "@/lib/football-api/sportmonks";
 import {
   TRACKED_LEAGUES,
@@ -33,13 +34,14 @@ function leagueStatuses(fixtures: SportmonksFixtureRow[]): TrackedLeagueStatus[]
 async function fetchTodayTrackedFixturesRaw(
   cache: RequestCache,
   revalidate?: number,
+  include = trackedFixtureInclude(),
 ): Promise<TodayFixturesResult> {
   const date = getBucharestDateString();
   const filters = `fixtureLeagues:${TRACKED_LEAGUES.map((l) => l.id).join(",")};markets:1,2,14,80,86`;
   const result = await sportmonksFetch<SportmonksFixtureRow[]>(
     `/fixtures/date/${date}`,
     {
-      include: trackedFixtureInclude(),
+      include,
       filters,
       per_page: 50,
       timezone: TIMEZONE,
@@ -77,17 +79,21 @@ export async function fetchTodayTrackedFixturesFresh(): Promise<TodayFixturesRes
   return fetchTodayTrackedFixturesRaw("no-store");
 }
 
+export async function fetchTodayTrackedFixturesUiFresh(): Promise<TodayFixturesResult> {
+  return fetchTodayTrackedFixturesRaw("no-store", undefined, trackedFixtureUiInclude());
+}
+
 /**
  * Pages can stay cached for a short period when no match is close to live.
  * Cron and client live polling still use no-store for near-real-time updates.
  */
 export async function fetchTodayTrackedFixtures(): Promise<TodayFixturesResult> {
-  return fetchTodayTrackedFixturesRaw("force-cache", 15 * 60);
+  return fetchTodayTrackedFixturesRaw("force-cache", 15 * 60, trackedFixtureUiInclude());
 }
 
 export async function fetchTodayTrackedFixturesForUi(): Promise<TodayFixturesResult> {
   if (process.env.NODE_ENV === "development") {
-    return fetchTodayTrackedFixturesFresh();
+    return fetchTodayTrackedFixturesUiFresh();
   }
   return fetchTodayTrackedFixtures();
 }

@@ -17,6 +17,7 @@ const FOOTBALL_BASE =
 
 const DEFAULT_INCLUDE =
   "league;participants;scores;state;periods;statistics.type;events;predictions.type;odds";
+const UI_INCLUDE = "league;participants;scores;state;periods;statistics.type";
 
 export type SportmonksApiResult<T> =
   | { ok: true; data: T; rateLimitRemaining?: number }
@@ -34,6 +35,10 @@ export function sportmonksUrl(path: string): URL {
 
 export function trackedFixtureInclude(): string {
   return DEFAULT_INCLUDE;
+}
+
+export function trackedFixtureUiInclude(): string {
+  return UI_INCLUDE;
 }
 
 export async function sportmonksFetch<T>(
