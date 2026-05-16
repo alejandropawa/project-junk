@@ -1,13 +1,17 @@
 import { revalidatePath } from "next/cache";
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { fetchFixtureByIdFresh } from "@/lib/football-api/fetch-fixture-by-id";
-import { engineOutputToPredictionPayload } from "@/lib/predictions/map-engine-output";
+import {
+  buildPredictionShadowMode,
+  engineOutputToPredictionPayload,
+  noBetToPredictionPayload,
+} from "@/lib/predictions/map-engine-output";
 import {
   fetchAllPredictionReportRows,
   upsertPrediction,
 } from "@/lib/predictions/prediction-repository";
 import type { PredictionPayload } from "@/lib/predictions/types";
-import { runProbixEngine } from "@/lib/probix-engine/run-engine";
+import { runProbixEngineDecision } from "@/lib/probix-engine/run-engine";
 import { loadProbixLearningContext } from "@/lib/probix-evolution/learning-context";
 import { createServiceRoleClient } from "@/lib/supabase/admin";
 
@@ -122,9 +126,10 @@ export async function GET(req: Request) {
       return "fail";
     }
 
-    let engineOut: Awaited<ReturnType<typeof runProbixEngine>> | null = null;
+    let engineOut: Awaited<ReturnType<typeof runProbixEngineDecision>> | null =
+      null;
     for (let a = 0; a < ENGINE_ATTEMPTS; a++) {
-      engineOut = await runProbixEngine(fx.fixture, {
+      engineOut = await runProbixEngineDecision(fx.fixture, {
         learning: learningCtx,
       });
       if (engineOut) break;
@@ -135,13 +140,27 @@ export async function GET(req: Request) {
       notices.push(`${row.fixture_id}: motor fără output`);
       return "fail";
     }
-
-    const fresh = engineOutputToPredictionPayload(engineOut, {
-      fixtureId: fx.fixture.id,
-      leagueId: fx.fixture.leagueId,
-      leagueName: fx.fixture.leagueName,
-      oddsApiEventId: prev.oddsApiEventId ?? 0,
+    const shadowOut = await runProbixEngineDecision(fx.fixture, {
+      learning: learningCtx,
+      disableRiskGates: true,
     });
+
+    const fresh =
+      "kind" in engineOut
+        ? noBetToPredictionPayload(engineOut, {
+            fixtureId: fx.fixture.id,
+            leagueId: fx.fixture.leagueId,
+            leagueName: fx.fixture.leagueName,
+          })
+        : engineOutputToPredictionPayload(engineOut, {
+            fixtureId: fx.fixture.id,
+            leagueId: fx.fixture.leagueId,
+            leagueName: fx.fixture.leagueName,
+            oddsApiEventId: prev.oddsApiEventId ?? 0,
+          });
+    if (shadowOut) {
+      fresh.shadowMode = buildPredictionShadowMode(engineOut, shadowOut);
+    }
 
     const merged = mergePayloadPreserveSettlement(fresh, prev);
 

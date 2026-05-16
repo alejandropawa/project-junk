@@ -1,3 +1,4 @@
+import { CookieConsentBanner } from "@/components/CookieConsentBanner";
 import { SiteFooter } from "@/components/SiteFooter";
 import { SiteHeader } from "@/components/SiteHeader";
 import { SiteJsonLd } from "@/components/site-json-ld";
@@ -28,6 +29,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
       </div>
 
       <SiteFooter />
+      <CookieConsentBanner />
     </div>
   );
 }

@@ -33,7 +33,8 @@ export default function PoliticaCookiesDisclaimerPage() {
             Cookie-urile utilizate nu sunt destinate profilării agresive sau publicității personalizate.
           </p>
           <p className="mt-4">
-            Prin continuarea utilizării platformei, accepți utilizarea cookie-urilor necesare funcționării serviciului.
+            La prima vizită afișăm un banner de informare pentru cookie-uri. Poți confirma informarea din banner; cookie-urile
+            strict necesare pot fi folosite pentru funcționarea serviciului și pentru menținerea sesiunii.
           </p>
         </section>
 

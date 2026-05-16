@@ -61,11 +61,15 @@ export async function upsertPrediction(
     firstPick?.openingOdds ??
     firstPick?.decimal ??
     null;
+  const publishedOdds = firstPick?.publishedOdds ?? firstPick?.openingOdds ?? null;
+  const currentOdds = firstPick?.currentOdds ?? null;
   const closingOdds = firstPick?.closingOdds ?? null;
   const clvPercent =
-    openingOdds != null && closingOdds != null && openingOdds > 0
-      ? ((closingOdds - openingOdds) / openingOdds) * 100
-      : firstPick?.clvPercent ?? null;
+    firstPick?.closingLineValuePct ??
+    firstPick?.clvPercent ??
+    (publishedOdds != null && closingOdds != null && closingOdds > 0
+      ? (publishedOdds / closingOdds - 1) * 100
+      : null);
   const flatStakeProfit =
     row.payload.settlement === "won" && openingOdds != null
       ? openingOdds - 1
@@ -89,7 +93,13 @@ export async function upsertPrediction(
       implied_probability: impliedProbability,
       edge,
       opening_odds: openingOdds,
+      published_odds: publishedOdds,
+      current_odds: currentOdds,
       closing_odds: closingOdds,
+      odds_movement_pct: firstPick?.oddsMovementPct ?? null,
+      moved_against_model: firstPick?.movedAgainstModel ?? null,
+      moved_with_model: firstPick?.movedWithModel ?? null,
+      closing_line_value_pct: firstPick?.closingLineValuePct ?? clvPercent,
       clv_percent: clvPercent,
       flat_stake_profit: flatStakeProfit,
     },
@@ -295,19 +305,6 @@ export async function fetchPredictionReportsForLearning(
     from += page;
   }
   return out;
-}
-
-/**
- * Șterge tot istoricul `prediction_reports` (operațiune drastică — folosit după redeploy dacă ceri regenerare masivă).
- * Filtru tautologic sigur pentru PostgREST: `fixture_id >= 0`.
- */
-export async function deleteAllPredictionReports(
-  sb: SupabaseClient,
-): Promise<{ ok: true } | { ok: false; error: string }> {
-  const { error } = await sb.from(TABLE).delete().gte("fixture_id", 0);
-  if (error)
-    return { ok: false, error: `${error.code ?? "?"} ${error.message}`.trim() };
-  return { ok: true };
 }
 
 /** Toate rândurile din `prediction_reports` (paginat) — pentru job-uri admin / migrări. */

@@ -1,36 +1,43 @@
-This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
+# Probix
 
-## Getting Started
+Probix is a football analytics app built with Next.js, Supabase, and the SportMonks API. It serves live fixtures, transparent prediction cards, historic settlement views, and internal engine audit tooling.
 
-First, run the development server:
+## Development
+
+Run the local development server:
 
 ```bash
 npm run dev
-# or
-yarn dev
-# or
-pnpm dev
-# or
-bun dev
 ```
 
-Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
+Open [http://localhost:3000](http://localhost:3000).
 
-You can start editing the page by modifying `app/page.tsx`. The page auto-updates as you edit the file.
+## Probix Backtesting
 
-This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
+Run the internal prediction audit report with:
 
-## Learn More
+```bash
+npm run probix:backtest
+```
 
-To learn more about Next.js, take a look at the following resources:
+Useful variants:
 
-- [Next.js Documentation](https://nextjs.org/docs) - learn about Next.js features and API.
-- [Learn Next.js](https://nextjs.org/learn) - an interactive Next.js tutorial.
+```bash
+npm run probix:backtest -- --json
+npm run probix:backtest -- --limit=500
+```
 
-You can check out [the Next.js GitHub repository](https://github.com/vercel/next.js) - your feedback and contributions are welcome!
+The report reads `prediction_reports` using `NEXT_PUBLIC_SUPABASE_URL` and
+`SUPABASE_SERVICE_ROLE_KEY`. It compares legacy rows against gated rows, counts
+`NO_BET` avoids, reports ROI/hit rate by safety status, volatility bucket,
+market family, combo size, and confidence bucket, and includes closing-line
+value metrics:
 
-## Deploy on Vercel
+- percentage of picks that beat closing odds
+- average CLV
+- CLV by market family, league, confidence bucket, and safety status
 
-The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
-
-Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/building-your-application/deploying) for more details.
+Probix stores published odds as the opening price. Settlement/repair refreshes
+current closing odds from SportMonks and computes CLV as
+`publishedOdds / closingOdds - 1`, so positive CLV means Probix beat the closing
+market.

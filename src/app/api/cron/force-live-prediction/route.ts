@@ -1,10 +1,14 @@
 import { revalidatePath } from "next/cache";
-import { engineOutputToPredictionPayload } from "@/lib/predictions/map-engine-output";
+import {
+  buildPredictionShadowMode,
+  engineOutputToPredictionPayload,
+  noBetToPredictionPayload,
+} from "@/lib/predictions/map-engine-output";
 import {
   predictionExists,
   upsertPrediction,
 } from "@/lib/predictions/prediction-repository";
-import { runProbixEngine } from "@/lib/probix-engine/run-engine";
+import { runProbixEngineDecision } from "@/lib/probix-engine/run-engine";
 import { loadProbixLearningContext } from "@/lib/probix-evolution/learning-context";
 import { fetchTodayTrackedFixturesFresh } from "@/lib/football-api/fetch-today";
 import { TRACKED_LEAGUE_IDS } from "@/lib/football-api/tracked-leagues";
@@ -164,20 +168,34 @@ async function handle(
   for (const f of targets) {
     if (!overwrite && (await predictionExists(sb, f.id, data.date))) continue;
 
-    const engineOut = await runProbixEngine(f, {
+    const engineOut = await runProbixEngineDecision(f, {
       learning: learningCtx,
     });
     if (!engineOut) {
       notices.push(`motor: date insuficiente sau combo sub prag (${f.id})`);
       continue;
     }
-
-    const payload = engineOutputToPredictionPayload(engineOut, {
-      oddsApiEventId: 0,
-      fixtureId: f.id,
-      leagueId: f.leagueId,
-      leagueName: f.leagueName,
+    const shadowOut = await runProbixEngineDecision(f, {
+      learning: learningCtx,
+      disableRiskGates: true,
     });
+
+    const payload =
+      "kind" in engineOut
+        ? noBetToPredictionPayload(engineOut, {
+            fixtureId: f.id,
+            leagueId: f.leagueId,
+            leagueName: f.leagueName,
+          })
+        : engineOutputToPredictionPayload(engineOut, {
+            oddsApiEventId: 0,
+            fixtureId: f.id,
+            leagueId: f.leagueId,
+            leagueName: f.leagueName,
+          });
+    if (shadowOut) {
+      payload.shadowMode = buildPredictionShadowMode(engineOut, shadowOut);
+    }
 
     const up = await upsertPrediction(sb, {
       fixture_id: f.id,

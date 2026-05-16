@@ -12,7 +12,10 @@ export type NoBetReason =
   | "low_data_quality"
   | "poor_league_history"
   | "no_real_odds"
-  | "high_correlation";
+  | "high_correlation"
+  | "volatile_avoid"
+  | "insufficient_candidate_pool"
+  | "odds_moved_against_model";
 
 export type ValueGateCandidateInput = {
   marketId: string;

@@ -1,7 +1,4 @@
-import {
-  fetchDistinctPredictionDateRosResolvedPublic,
-  fetchDistinctPredictionDatesRo,
-} from "@/lib/predictions/prediction-repository";
+import { fetchDistinctPredictionDateRosResolvedPublic } from "@/lib/predictions/prediction-repository";
 import { createServiceRoleClient } from "@/lib/supabase/admin";
 import { createClient } from "@/lib/supabase/server";
 

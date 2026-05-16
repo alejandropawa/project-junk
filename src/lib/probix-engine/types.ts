@@ -1,4 +1,5 @@
 import type { NormalizedFixture } from "@/lib/football-api/types";
+import type { MatchVolatilityReport } from "@/lib/probix-engine/match-volatility";
 
 export type RiskRating = "low" | "medium" | "high";
 
@@ -38,6 +39,9 @@ export type MarketCandidate = {
   /** Model − implied; 0 dacă lipsă cotă agent. */
   edgeScore?: number;
   oddsSource?: OddsSource;
+  oddsMovementPct?: number;
+  movedAgainstModel?: boolean;
+  movedWithModel?: boolean;
   correlationTags?: string[];
   probabilityDebug?: {
     rawP: number;
@@ -113,11 +117,22 @@ export type ProbixNoBetReason =
   | "low_data_quality"
   | "poor_league_history"
   | "no_real_odds"
-  | "high_correlation";
+  | "high_correlation"
+  | "volatile_avoid"
+  | "insufficient_candidate_pool"
+  | "odds_moved_against_model";
+
+export type ProbixPredictionOutcome =
+  | "SAFE_BET"
+  | "MEDIUM_RISK"
+  | "VOLATILE_AVOID"
+  | "NO_BET";
 
 export type ProbixNoBetResult = {
   kind: "no_bet";
   reason: ProbixNoBetReason;
+  outcome: "NO_BET";
+  volatility?: MatchVolatilityReport;
   debug?: unknown;
 };
 
@@ -133,6 +148,8 @@ export type ProbixEngineOutput = {
   confidenceAvg: number;
   estimatedCombinedDecimal: number;
   riskRating: RiskRating;
+  predictionOutcome?: ProbixPredictionOutcome;
+  volatility?: MatchVolatilityReport;
   explanationBullets: string[];
   engineVersion: string;
   valueGateDebug?: unknown;

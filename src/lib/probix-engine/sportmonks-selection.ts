@@ -12,6 +12,10 @@ import type {
   ProbixEngineOutput,
 } from "@/lib/probix-engine/types";
 import {
+  assessMatchVolatility,
+  type MatchVolatilityReport,
+} from "@/lib/probix-engine/match-volatility";
+import {
   buildValueGateCandidate,
   evaluateValueGateCombo,
   type NoBetReason,
@@ -44,6 +48,9 @@ type AdjustedDraft = Draft & {
   marketReliabilityFactor: number;
   leagueReliabilityFactor: number;
   rejectedReasons: NoBetReason[];
+  oddsMovementPct?: number;
+  movedAgainstModel?: boolean;
+  movedWithModel?: boolean;
 };
 
 function pct(raw: unknown): number | null {
@@ -69,17 +76,39 @@ function adjustDraftProbability(
     fixture.leagueName,
   );
 
+  const rejectedReasons = [...gated.rejectedReasons];
+  const marketDisagreementPct =
+    draft.source === "bookmaker" && gated.finalAdjustedProbability > 0
+      ? ((gated.impliedProbability - gated.finalAdjustedProbability) /
+          gated.finalAdjustedProbability) *
+        100
+      : 0;
+  const movedAgainstModel = marketDisagreementPct > 8;
+  const movedWithModel = marketDisagreementPct < -5;
+  if (marketDisagreementPct > 15) {
+    rejectedReasons.push("odds_moved_against_model");
+  }
+  const finalP =
+    movedAgainstModel && marketDisagreementPct <= 15
+      ? Math.max(0.05, gated.finalAdjustedProbability * 0.94)
+      : movedWithModel
+        ? Math.min(0.94, gated.finalAdjustedProbability * 1.025)
+        : gated.finalAdjustedProbability;
+
   return {
     ...draft,
     rawP: gated.rawProbability,
     calibratedP: gated.calibratedProbability,
     reliabilityFactor: gated.reliabilityFactor,
-    finalP: gated.finalAdjustedProbability,
-    adjustedEdge: gated.finalEdge,
+    finalP,
+    adjustedEdge: finalP - gated.impliedProbability,
     impliedP: gated.impliedProbability,
     marketReliabilityFactor: gated.marketReliabilityFactor,
     leagueReliabilityFactor: gated.leagueReliabilityFactor,
-    rejectedReasons: gated.rejectedReasons,
+    rejectedReasons,
+    oddsMovementPct: Number(marketDisagreementPct.toFixed(3)),
+    movedAgainstModel,
+    movedWithModel,
   };
 }
 
@@ -306,6 +335,9 @@ function toCandidate(x: AdjustedDraft): MarketCandidate {
     bookmakerImpliedProb: x.source === "bookmaker" ? Number((1 / x.decimal).toFixed(4)) : undefined,
     edgeScore: Number(x.adjustedEdge.toFixed(4)),
     oddsSource: x.source,
+    oddsMovementPct: x.oddsMovementPct,
+    movedAgainstModel: x.movedAgainstModel,
+    movedWithModel: x.movedWithModel,
     rationaleKeys: ["sportmonks_prediction", x.source],
     correlationTags: [x.group],
     probabilityDebug: {
@@ -324,28 +356,95 @@ function toCandidate(x: AdjustedDraft): MarketCandidate {
 function noBetFromDebug(
   reason: NoBetReason,
   debug: ValueGateDebug,
+  volatility?: MatchVolatilityReport,
 ): ProbixNoBetResult {
   return {
     kind: "no_bet",
     reason,
+    outcome: "NO_BET",
+    volatility,
     debug,
   };
+}
+
+function volatilityCandidateInput(drafts: readonly AdjustedDraft[]) {
+  return drafts.map((x) => ({
+    marketId: x.marketId,
+    family: x.family,
+    p: x.finalP,
+    bookmakerImpliedProb:
+      x.source === "bookmaker" ? Number((1 / x.decimal).toFixed(4)) : undefined,
+    edgeScore: x.adjustedEdge,
+    oddsSource: x.source,
+  }));
+}
+
+function predictionOutcomeFromVolatility(
+  report: MatchVolatilityReport,
+  confidenceAvg: number,
+): ProbixEngineOutput["predictionOutcome"] {
+  if (report.shouldAvoid) return "VOLATILE_AVOID";
+  if (report.level === "LOW" && confidenceAvg >= 0.72) return "SAFE_BET";
+  return "MEDIUM_RISK";
 }
 
 export function buildSportmonksPredictionDecision(
   fixture: NormalizedFixture,
   learning?: ProbixLearningContext | null,
+  opts?: {
+    disableRiskGates?: boolean;
+  },
 ): ProbixEngineOutput | ProbixNoBetResult {
-  const drafts = buildDrafts(fixture)
+  const rawDrafts = buildDrafts(fixture);
+  const adjustedDrafts = rawDrafts
     .map((draft) => adjustDraftProbability(draft, fixture, learning))
+    .sort((a, b) => scoreDraft(b) - scoreDraft(a));
+
+  const familySampleSizes = learning
+    ? adjustedDrafts.map((x) => {
+        const dbg = buildValueGateCandidate(
+          {
+            marketId: x.marketId,
+            family: x.family,
+            rawProbability: x.rawP,
+            decimal: x.decimal,
+            oddsSource: x.source,
+          },
+          learning,
+          fixture.leagueName,
+        );
+        return dbg.familySampleSize;
+      })
+    : [];
+
+  const volatility = assessMatchVolatility({
+    fixture,
+    candidates: volatilityCandidateInput(adjustedDrafts),
+    leagueReliabilityFactor: learning?.leagueProbFactor.get(fixture.leagueName),
+    familySampleSizeMin: familySampleSizes.length
+      ? Math.min(...familySampleSizes)
+      : null,
+  });
+
+  if (volatility.shouldAvoid && !opts?.disableRiskGates) {
+    return noBetFromDebug(
+      "volatile_avoid",
+      {
+        rejectedCandidates: [],
+        comboRejectedReason: "volatile_avoid",
+      },
+      volatility,
+    );
+  }
+
+  const drafts = adjustedDrafts
     .filter((draft) => {
       return draft.rejectedReasons.length === 0;
     })
     .sort((a, b) => scoreDraft(b) - scoreDraft(a))
     .slice(0, 14);
   if (!drafts.length) {
-    const rejectedCandidates = buildDrafts(fixture)
-      .map((draft) => adjustDraftProbability(draft, fixture, learning))
+    const rejectedCandidates = adjustedDrafts
       .map((x) => ({
         marketId: x.marketId,
         family: x.family,
@@ -358,13 +457,24 @@ export function buildSportmonksPredictionDecision(
         leagueReliabilityFactor: x.leagueReliabilityFactor,
         finalP: x.finalP,
       }));
-    return noBetFromDebug("no_real_odds", { rejectedCandidates, comboRejectedReason: "no_real_odds" });
+    return noBetFromDebug(
+      rawDrafts.length ? "no_real_odds" : "insufficient_candidate_pool",
+      {
+        rejectedCandidates,
+        comboRejectedReason: rawDrafts.length
+          ? "no_real_odds"
+          : "insufficient_candidate_pool",
+      },
+      volatility,
+    );
   }
 
   let firstRejectedReason: NoBetReason | null = null;
   let firstRejectedDebug: ValueGateDebug | null = null;
+  const maxComboLegs =
+    volatility.shouldAllowOnlySingles && !opts?.disableRiskGates ? 1 : 3;
 
-  const ranked = combos(drafts, 3)
+  const ranked = combos(drafts, maxComboLegs)
     .filter(compatible)
     .flatMap((combo) => {
       const comboType = (combo.length === 1 ? "single" : combo.length === 2 ? "double" : "triple") as ProbixComboType;
@@ -432,8 +542,11 @@ export function buildSportmonksPredictionDecision(
       "Selectie din probabilitatile SportMonks, cu cote SportMonks agregate pe bookmakeri.",
       "Publicare doar cand probabilitatea ajustata depaseste probabilitatea implicita a cotelor.",
       "Value gate respinge cote sintetice, edge insuficient si combinatii corelate excesiv.",
+      volatility.explanation,
     ],
     engineVersion: "sportmonks-predictions-v1",
+    predictionOutcome: predictionOutcomeFromVolatility(volatility, confidenceAvg),
+    volatility,
     valueGateDebug: selected.valueGateDebug,
   };
 }

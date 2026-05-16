@@ -1,12 +1,16 @@
 import { revalidatePath } from "next/cache";
 import { acquireCronLock, releaseCronLock } from "@/lib/cron/locks";
 import { fetchTodayTrackedFixturesFresh } from "@/lib/football-api/fetch-today";
-import { engineOutputToPredictionPayload } from "@/lib/predictions/map-engine-output";
+import {
+  buildPredictionShadowMode,
+  engineOutputToPredictionPayload,
+  noBetToPredictionPayload,
+} from "@/lib/predictions/map-engine-output";
 import {
   fetchPredictionsForDate,
   upsertPrediction,
 } from "@/lib/predictions/prediction-repository";
-import { runProbixEngine } from "@/lib/probix-engine/run-engine";
+import { runProbixEngineDecision } from "@/lib/probix-engine/run-engine";
 import { loadProbixLearningContext } from "@/lib/probix-evolution/learning-context";
 import { createServiceRoleClient } from "@/lib/supabase/admin";
 
@@ -176,9 +180,9 @@ export async function GET(req: Request) {
     }
 
     for (const f of candidates) {
-      let engineOut: Awaited<ReturnType<typeof runProbixEngine>> | null = null;
+      let engineOut: Awaited<ReturnType<typeof runProbixEngineDecision>> | null = null;
       for (let attempt = 0; attempt < ENGINE_ATTEMPTS; attempt++) {
-        engineOut = await runProbixEngine(f, {
+        engineOut = await runProbixEngineDecision(f, {
           learning: learningCtx,
         });
         if (engineOut) break;
@@ -191,12 +195,27 @@ export async function GET(req: Request) {
         continue;
       }
 
-      const payload = engineOutputToPredictionPayload(engineOut, {
-        oddsApiEventId: 0,
-        fixtureId: f.id,
-        leagueId: f.leagueId,
-        leagueName: f.leagueName,
+      const shadowOut = await runProbixEngineDecision(f, {
+        learning: learningCtx,
+        disableRiskGates: true,
       });
+
+      const payload =
+        "kind" in engineOut
+          ? noBetToPredictionPayload(engineOut, {
+              fixtureId: f.id,
+              leagueId: f.leagueId,
+              leagueName: f.leagueName,
+            })
+          : engineOutputToPredictionPayload(engineOut, {
+              oddsApiEventId: 0,
+              fixtureId: f.id,
+              leagueId: f.leagueId,
+              leagueName: f.leagueName,
+            });
+      if (shadowOut) {
+        payload.shadowMode = buildPredictionShadowMode(engineOut, shadowOut);
+      }
 
       let saved = false;
       let lastUpsertError = "";

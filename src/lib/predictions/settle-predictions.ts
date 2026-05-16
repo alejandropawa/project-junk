@@ -13,6 +13,10 @@ import {
   sportmonksFetch,
   trackedFixtureInclude,
 } from "@/lib/football-api/sportmonks";
+import {
+  calculateOddsMovement,
+  sportmonksOddsForPredictionPick,
+} from "@/lib/probix-engine/odds-intelligence";
 import type { SportmonksFixtureRow } from "@/lib/football-api/types";
 
 const FETCH_CHUNK = 20;
@@ -42,15 +46,53 @@ export function recomputeSettlementPayloadFromFixture(
     marketId: pick.marketId,
     result: evaluatePickResult(nf, pick, totals),
   }));
+  const picks = payload.picks.map((pick) => {
+    const closing = sportmonksOddsForPredictionPick(nf, pick);
+    const opening = pick.publishedOdds ?? pick.openingOdds ?? pick.decimal;
+    const movement = calculateOddsMovement(opening, closing);
+    return {
+      ...pick,
+      ...movement,
+      currentOdds: movement.currentOdds ?? pick.currentOdds,
+      closingOdds: movement.closingOdds ?? pick.closingOdds,
+    };
+  });
 
   return {
     ...payload,
+    picks,
     settlement: derived,
     calibrationOutcome: {
       settledAt: new Date().toISOString(),
       comboResult: derived,
       pickResults,
     },
+    calibrationSnapshot: payload.calibrationSnapshot
+      ? {
+          ...payload.calibrationSnapshot,
+          picksDetail: picks.map((x) => ({
+            marketId: x.marketId,
+            modelProb: x.modelProb,
+            calibratedModelProb: x.calibratedModelProb,
+            bookmakerProb: x.bookmakerProb,
+            bookmakerOdds: x.decimal,
+            edgeScore: x.edgeScore,
+            openingOdds: x.openingOdds,
+            publishedOdds: x.publishedOdds,
+            currentOdds: x.currentOdds,
+            closingOdds: x.closingOdds,
+            oddsMovementPct: x.oddsMovementPct,
+            movedAgainstModel: x.movedAgainstModel,
+            movedWithModel: x.movedWithModel,
+            clvPercent: x.clvPercent,
+            closingLineValuePct: x.closingLineValuePct,
+            flatStakeProfit: x.flatStakeProfit,
+            oddsSource: x.oddsSource,
+            pickConfidence: x.pickConfidence,
+            correlationTags: x.correlationTags,
+          })),
+        }
+      : payload.calibrationSnapshot,
   };
 }
 

@@ -13,8 +13,14 @@ export type PredictionPick = {
   bookmakerProb?: number;
   edgeScore?: number;
   openingOdds?: number;
+  publishedOdds?: number;
+  currentOdds?: number;
   closingOdds?: number;
+  oddsMovementPct?: number;
+  movedAgainstModel?: boolean;
+  movedWithModel?: boolean;
   clvPercent?: number;
+  closingLineValuePct?: number;
   flatStakeProfit?: number;
   oddsSource?: ProbixOddsSource;
   /** Încredere agregată (formă/date) pentru leg. */
@@ -26,6 +32,12 @@ export type PredictionPick = {
 export type PredictionSettlement = "pending" | "won" | "lost" | "void";
 
 export type RiskRating = "low" | "medium" | "high";
+
+export type PredictionOutcome =
+  | "SAFE_BET"
+  | "MEDIUM_RISK"
+  | "VOLATILE_AVOID"
+  | "NO_BET";
 
 /** Snapshot pentru analize / calibrare ulterioare (JSONB în `prediction_reports`). */
 export type PredictionCalibrationSnapshot = {
@@ -45,10 +57,16 @@ export type PredictionCalibrationSnapshot = {
     bookmakerProb?: number;
     bookmakerOdds?: number;
     edgeScore?: number;
-    openingOdds?: number;
-    closingOdds?: number;
-    clvPercent?: number;
-    flatStakeProfit?: number;
+      openingOdds?: number;
+      publishedOdds?: number;
+      currentOdds?: number;
+      closingOdds?: number;
+      oddsMovementPct?: number;
+      movedAgainstModel?: boolean;
+      movedWithModel?: boolean;
+      clvPercent?: number;
+      closingLineValuePct?: number;
+      flatStakeProfit?: number;
     oddsSource?: ProbixOddsSource;
     pickConfidence?: number;
     correlationTags?: string[];
@@ -76,6 +94,18 @@ export type PredictionPayload = {
   narrative?: string;
   explanationBullets?: string[];
   riskRating?: RiskRating;
+  predictionOutcome?: PredictionOutcome;
+  safetyStatus?: PredictionOutcome;
+  noBetReason?: string;
+  volatilityReport?: {
+    score01: number;
+    level: "LOW" | "MEDIUM" | "HIGH" | "EXTREME";
+    shouldAvoid: boolean;
+    shouldBlockCombos: boolean;
+    shouldAllowOnlySingles: boolean;
+    reasons: string[];
+    explanation: string;
+  };
   estimatedCombinedDecimal?: number;
   engineVersion?: string;
   modelClass?: string;
@@ -85,6 +115,33 @@ export type PredictionPayload = {
   totalEdge?: number;
   calibrationSnapshot?: PredictionCalibrationSnapshot;
   calibrationOutcome?: PredictionCalibrationOutcome;
+  shadowMode?: {
+    generatedAt: string;
+    ungated: {
+      outcome: PredictionOutcome;
+      noBetReason?: string;
+      comboType?: "single" | "double" | "triple";
+      pickCount: number;
+      confidenceScore?: number;
+      estimatedCombinedDecimal?: number;
+      comboProbability?: number;
+      totalEdge?: number;
+      marketFamilies: string[];
+      marketIds: string[];
+    };
+    gated: {
+      outcome: PredictionOutcome;
+      noBetReason?: string;
+      comboType?: "single" | "double" | "triple";
+      pickCount: number;
+      confidenceScore?: number;
+      estimatedCombinedDecimal?: number;
+      comboProbability?: number;
+      totalEdge?: number;
+      marketFamilies: string[];
+      marketIds: string[];
+    };
+  };
 };
 
 export type StoredPredictionRow = {

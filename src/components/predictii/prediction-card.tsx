@@ -490,6 +490,8 @@ const PredictionCardInner = ({
     fullPredictionReveal &&
     !prediction?.picks?.length &&
     fixture.bucket === "upcoming";
+  const noBetPrediction =
+    fullPredictionReveal && prediction?.predictionOutcome === "NO_BET";
 
   return (
     <article
@@ -678,6 +680,17 @@ const PredictionCardInner = ({
                 </p>
               </div>
             </div>
+          </div>
+        ) : noBetPrediction ? (
+          <div className="flex gap-2.5 p-3.5 text-[13px] leading-relaxed text-foreground/88 sm:p-4">
+            <CircleMinus
+              className="mt-0.5 size-4 shrink-0 text-amber-300/80"
+              aria-hidden
+            />
+            <p className="min-w-0">
+              Probix evitÄƒ acest meci: profil volatil sau pool de selecÈ›ii prea
+              slab pentru o predicÈ›ie publicabilÄƒ.
+            </p>
           </div>
         ) : fullPredictionReveal && !prediction?.picks?.length ? (
           <div className="min-w-0 text-foreground/88">
