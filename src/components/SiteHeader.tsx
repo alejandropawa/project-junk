@@ -173,6 +173,11 @@ export function SiteHeader() {
     function onProbixAuthOpen(ev: Event) {
       const e = ev as CustomEvent<{ mode?: string }>;
       const m = e.detail?.mode;
+      if (user && (m === "login" || m === "register")) {
+        setMode("account");
+        setOpen(true);
+        return;
+      }
       if (m === "login" || m === "register") {
         openAuth(m);
       }
@@ -183,7 +188,7 @@ export function SiteHeader() {
         "probix-open-auth",
         onProbixAuthOpen as EventListener,
       );
-  }, [openAuth]);
+  }, [openAuth, user]);
 
   const displayName =
     (typeof user?.user_metadata?.username === "string"
