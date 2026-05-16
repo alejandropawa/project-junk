@@ -12,6 +12,10 @@ export type PredictionPick = {
   calibratedModelProb?: number;
   bookmakerProb?: number;
   edgeScore?: number;
+  openingOdds?: number;
+  closingOdds?: number;
+  clvPercent?: number;
+  flatStakeProfit?: number;
   oddsSource?: ProbixOddsSource;
   /** Încredere agregată (formă/date) pentru leg. */
   pickConfidence?: number;
@@ -41,6 +45,10 @@ export type PredictionCalibrationSnapshot = {
     bookmakerProb?: number;
     bookmakerOdds?: number;
     edgeScore?: number;
+    openingOdds?: number;
+    closingOdds?: number;
+    clvPercent?: number;
+    flatStakeProfit?: number;
     oddsSource?: ProbixOddsSource;
     pickConfidence?: number;
     correlationTags?: string[];

@@ -1,11 +1,6 @@
 import { allowIpRequest, clientIpFromRequest } from "@/lib/rate-limit-ip";
-import {
-  normalizeSportmonksFixtureRow,
-  sportmonksFetch,
-  trackedFixtureInclude,
-} from "@/lib/football-api/sportmonks";
-import { TRACKED_LEAGUE_IDS } from "@/lib/football-api/tracked-leagues";
-import type { SportmonksFixtureRow } from "@/lib/football-api/types";
+import { fetchLiveFixtureSnapshotsByIds } from "@/lib/football-api/live-fixture-cache";
+import { createServiceRoleClient } from "@/lib/supabase/admin";
 
 export const dynamic = "force-dynamic";
 
@@ -41,23 +36,24 @@ export async function GET(req: Request) {
     return Response.json({ fixtures: [] }, { status: 200 });
   }
 
-  const result = await sportmonksFetch<SportmonksFixtureRow[]>(
-    `/fixtures/multi/${ids.join(",")}`,
-    {
-      include: trackedFixtureInclude(),
-      filters: "markets:1,2,14,80,86",
-      timezone: "Europe/Bucharest",
-    },
-    { cache: "no-store" },
-  );
+  const sb = createServiceRoleClient();
+  if (!sb) {
+    return Response.json(
+      { error: "Cache live indisponibil: SUPABASE_SERVICE_ROLE_KEY lipsa." },
+      { status: 500 },
+    );
+  }
 
+  const result = await fetchLiveFixtureSnapshotsByIds(sb, ids);
   if (!result.ok) {
     return Response.json({ error: result.error }, { status: 502 });
   }
 
-  const fixtures = result.data
-    .filter((row) => TRACKED_LEAGUE_IDS.has(row.league_id))
-    .map(normalizeSportmonksFixtureRow);
-
-  return Response.json({ fixtures });
+  return Response.json({
+    fixtures: result.fixtures,
+    stale: result.fixtures.some((fixture) => fixture.dataDelayed),
+    message: result.fixtures.some((fixture) => fixture.dataDelayed)
+      ? "data delayed"
+      : null,
+  });
 }

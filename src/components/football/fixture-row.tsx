@@ -73,6 +73,7 @@ export function FixtureRow({
   const live = f.bucket === "live";
   const finished = f.bucket === "finished";
   const clockLabel = liveFixtureClockLabel(f);
+  const delayed = Boolean(f.dataDelayed);
 
   return (
     <div
@@ -115,7 +116,14 @@ export function FixtureRow({
             ) : null}
           </div>
           <div className={cn(SIDE, "flex min-h-7 items-center justify-end")}>
-            {live ? <LiveBadge className={LIVE_STATUS_PULSE} /> : null}
+            <div className="flex flex-wrap items-center justify-end gap-1.5">
+              {delayed ? (
+                <span className="rounded-md border border-amber-400/35 bg-amber-500/10 px-1.5 py-0.5 text-[10px] font-medium leading-none text-amber-200">
+                  data delayed
+                </span>
+              ) : null}
+              {live ? <LiveBadge className={LIVE_STATUS_PULSE} /> : null}
+            </div>
           </div>
         </div>
 

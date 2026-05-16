@@ -27,6 +27,10 @@ export type ProbixLearningContext = {
   leagueProbFactor: ReadonlyMap<string, number>;
   /** Per familie (goals/BTTS/dc…). ~0.86–1.1. */
   familyReliability: ReadonlyMap<string, number>;
+  /** Observatii istorice per familie, folosite de value gate. */
+  familySampleSize: ReadonlyMap<string, number>;
+  /** Observatii istorice per liga, folosite de value gate. */
+  leagueSampleSize: ReadonlyMap<string, number>;
   /** Blocare doar pentru eșantion foarte mare + subperformanță severă. */
   hardBlockedLeagueNames: ReadonlySet<string>;
   summary: LearningBuildSummary;

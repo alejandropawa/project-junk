@@ -14,6 +14,7 @@ import {
   buildCalibrationBundle,
   inactiveCalibrationBundle,
 } from "@/lib/probix-evolution/calibration-model";
+import { calibrationFamilyKeyFromMarketId } from "@/lib/probix-evolution/market-family";
 import {
   evolutionBrierCalibrated,
   evolutionBrierRaw,
@@ -38,6 +39,8 @@ function emptyLearning(summary: LearningBuildSummary): ProbixLearningContext {
     marketPScale: new Map(),
     leagueProbFactor: new Map(),
     familyReliability: new Map(),
+    familySampleSize: new Map(),
+    leagueSampleSize: new Map(),
     hardBlockedLeagueNames: new Set(),
     summary,
   };
@@ -74,6 +77,16 @@ export function buildProbixLearningContextFromReports(
   const marketPScale = buildMarketReliabilityScale(obs);
   const leagueProbFactor = buildLeagueProbFactors(obs);
   const familyReliability = buildFamilyReliabilityScale(obs);
+  const familySampleSize = new Map<string, number>();
+  const leagueSampleSize = new Map(
+    [...aggregateByLeague(obs)].map(([name, row]) => [name, row.n] as const),
+  );
+  for (const o of obs) {
+    const fam = calibrationFamilyKeyFromMarketId(o.marketId);
+    if (fam !== "unknown") {
+      familySampleSize.set(fam, (familySampleSize.get(fam) ?? 0) + 1);
+    }
+  }
   const hardBlockedLeagueNames = buildHardBlockedLeagueNames(obs);
 
   return {
@@ -81,6 +94,8 @@ export function buildProbixLearningContextFromReports(
     marketPScale,
     leagueProbFactor,
     familyReliability,
+    familySampleSize,
+    leagueSampleSize,
     hardBlockedLeagueNames,
     summary,
   };

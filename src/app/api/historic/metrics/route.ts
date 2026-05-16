@@ -1,5 +1,8 @@
 import { isPredictionCombinationResolved } from "@/lib/predictions/prediction-access";
-import { summarizeHistoricEngineMetrics } from "@/lib/predictions/historic-metrics";
+import {
+  summarizeHistoricEngineMetrics,
+  summarizeValueRoiBreakdowns,
+} from "@/lib/predictions/historic-metrics";
 import { fetchAllPredictionPayloadsForMetrics } from "@/lib/predictions/prediction-repository";
 import { createServiceRoleClient } from "@/lib/supabase/admin";
 import { createClient } from "@/lib/supabase/server";
@@ -27,6 +30,7 @@ export async function GET() {
     isPredictionCombinationResolved,
   );
   const metrics = summarizeHistoricEngineMetrics(payloads);
+  const valueRoi = summarizeValueRoiBreakdowns(payloads);
   const tier = user ? "full" : "public_resolved_only";
-  return Response.json({ ok: true, metrics, tier });
+  return Response.json({ ok: true, metrics, valueRoi, tier });
 }

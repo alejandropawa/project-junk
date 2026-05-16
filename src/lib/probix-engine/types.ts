@@ -39,6 +39,16 @@ export type MarketCandidate = {
   edgeScore?: number;
   oddsSource?: OddsSource;
   correlationTags?: string[];
+  probabilityDebug?: {
+    rawP: number;
+    calibratedP: number;
+    reliabilityFactor: number;
+    finalP: number;
+    impliedP?: number;
+    edge?: number;
+    marketReliabilityFactor?: number;
+    leagueReliabilityFactor?: number;
+  };
 };
 
 export type TeamProfile = {
@@ -98,6 +108,19 @@ export type ProbixEngineInput = {
 
 export type ProbixComboType = "single" | "double" | "triple";
 
+export type ProbixNoBetReason =
+  | "insufficient_edge"
+  | "low_data_quality"
+  | "poor_league_history"
+  | "no_real_odds"
+  | "high_correlation";
+
+export type ProbixNoBetResult = {
+  kind: "no_bet";
+  reason: ProbixNoBetReason;
+  debug?: unknown;
+};
+
 export type ProbixEngineOutput = {
   picks: MarketCandidate[];
   comboType: ProbixComboType;
@@ -112,4 +135,5 @@ export type ProbixEngineOutput = {
   riskRating: RiskRating;
   explanationBullets: string[];
   engineVersion: string;
+  valueGateDebug?: unknown;
 };

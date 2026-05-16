@@ -10,6 +10,10 @@
       "schedule": "*/5 * * * *"
     },
     {
+      "path": "/api/cron/refresh-live-fixtures",
+      "schedule": "* * * * *"
+    },
+    {
       "path": "/api/cron/settle-predictions",
       "schedule": "*/10 * * * *"
     },

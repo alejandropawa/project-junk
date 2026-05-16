@@ -35,6 +35,10 @@ export function engineOutputToPredictionPayload(
             : undefined,
         edgeScore:
           p.edgeScore != null ? Number(p.edgeScore.toFixed(4)) : undefined,
+        openingOdds: Number(Number(dec).toFixed(2)),
+        closingOdds: undefined,
+        clvPercent: undefined,
+        flatStakeProfit: undefined,
         oddsSource: p.oddsSource,
         pickConfidence: Number(p.confidence.toFixed(4)),
         correlationTags: p.correlationTags
@@ -64,6 +68,10 @@ export function engineOutputToPredictionPayload(
       bookmakerProb: x.bookmakerProb,
       bookmakerOdds: x.decimal,
       edgeScore: x.edgeScore,
+      openingOdds: x.openingOdds,
+      closingOdds: x.closingOdds,
+      clvPercent: x.clvPercent,
+      flatStakeProfit: x.flatStakeProfit,
       oddsSource: x.oddsSource,
       pickConfidence: x.pickConfidence,
       correlationTags: x.correlationTags,

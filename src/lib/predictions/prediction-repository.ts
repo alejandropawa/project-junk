@@ -51,6 +51,30 @@ export async function upsertPrediction(
     payload: PredictionPayload;
   },
 ): Promise<UpsertPredictionResult> {
+  const firstPick = row.payload.picks?.[0];
+  const rawProbability = firstPick?.modelProb ?? null;
+  const calibratedProbability = firstPick?.calibratedModelProb ?? null;
+  const impliedProbability = firstPick?.bookmakerProb ?? null;
+  const edge = row.payload.totalEdge ?? firstPick?.edgeScore ?? null;
+  const openingOdds =
+    row.payload.estimatedCombinedDecimal ??
+    firstPick?.openingOdds ??
+    firstPick?.decimal ??
+    null;
+  const closingOdds = firstPick?.closingOdds ?? null;
+  const clvPercent =
+    openingOdds != null && closingOdds != null && openingOdds > 0
+      ? ((closingOdds - openingOdds) / openingOdds) * 100
+      : firstPick?.clvPercent ?? null;
+  const flatStakeProfit =
+    row.payload.settlement === "won" && openingOdds != null
+      ? openingOdds - 1
+      : row.payload.settlement === "lost"
+        ? -1
+        : row.payload.settlement === "void"
+          ? 0
+          : firstPick?.flatStakeProfit ?? null;
+
   const { error } = await sb.from(TABLE).upsert(
     {
       fixture_id: row.fixture_id,
@@ -60,6 +84,14 @@ export async function upsertPrediction(
       league_name: row.league_name,
       kickoff_iso: row.kickoff_iso,
       payload: row.payload,
+      raw_probability: rawProbability,
+      calibrated_probability: calibratedProbability,
+      implied_probability: impliedProbability,
+      edge,
+      opening_odds: openingOdds,
+      closing_odds: closingOdds,
+      clv_percent: clvPercent,
+      flat_stake_profit: flatStakeProfit,
     },
     { onConflict: "fixture_id,date_ro" },
   );

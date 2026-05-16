@@ -21,5 +21,5 @@ export async function runProbixEngine(
   if (!engineAllowsLeague(fixture.leagueId)) return null;
   const learn = opts?.learning ?? null;
   if (learn?.hardBlockedLeagueNames.has(fixture.leagueName)) return null;
-  return buildSportmonksPredictionOutput(fixture);
+  return buildSportmonksPredictionOutput(fixture, learn);
 }

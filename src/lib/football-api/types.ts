@@ -49,6 +49,8 @@ export type NormalizedFixture = {
   liveStatistics?: FixtureStatisticRow[];
   sportmonksPredictions?: SportmonksPrediction[];
   sportmonksOdds?: SportmonksOdd[];
+  liveCacheUpdatedAt?: string;
+  dataDelayed?: boolean;
 };
 
 export type TrackedLeagueStatus = {
