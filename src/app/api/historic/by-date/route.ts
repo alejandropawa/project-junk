@@ -1,6 +1,10 @@
-import { isPredictionCombinationResolved } from "@/lib/predictions/prediction-access";
 import { fetchPredictionReportRowsForDate } from "@/lib/predictions/prediction-repository";
 import { fetchNormalizedFixturesByIds } from "@/lib/predictions/settle-predictions";
+import {
+  isHistoricFixtureFinal,
+  isHistoricRowResolved,
+  withDerivedHistoricSettlement,
+} from "@/lib/predictions/historic-derived-settlement";
 import type { NormalizedFixture } from "@/lib/football-api/types";
 import { createServiceRoleClient } from "@/lib/supabase/admin";
 import { createClient } from "@/lib/supabase/server";
@@ -35,10 +39,9 @@ export async function GET(req: Request) {
   }
 
   const rows = await fetchPredictionReportRowsForDate(admin, dateRo);
-  const filtered = rows.filter((r) => isPredictionCombinationResolved(r.payload));
   const tier = user ? "full" : "public_resolved_only";
 
-  const ids = [...new Set(filtered.map((r) => r.fixture_id))].filter(
+  const ids = [...new Set(rows.map((r) => r.fixture_id))].filter(
     (n) => Number.isFinite(n) && n > 0,
   );
   let fixtures_by_id: Record<string, NormalizedFixture> = {};
@@ -52,6 +55,15 @@ export async function GET(req: Request) {
       fixtures_by_id = {};
     }
   }
+  const filtered = rows
+    .map((row) =>
+      withDerivedHistoricSettlement(row, fixtures_by_id[String(row.fixture_id)]),
+    )
+    .filter(
+      (row) =>
+        isHistoricFixtureFinal(fixtures_by_id[String(row.fixture_id)]) &&
+        isHistoricRowResolved(row),
+    );
 
   return Response.json({
     ok: true,

@@ -1,6 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useState } from "react";
+import Image from "next/image";
 import { IstoricCalendar } from "@/components/istoric/istoric-calendar";
 import { PredictionCard } from "@/components/predictii/prediction-card";
 import type { NormalizedFixture } from "@/lib/football-api/types";
@@ -40,6 +41,47 @@ function MetricTile({ label, value }: { label: string; value: string }) {
       </p>
     </div>
   );
+}
+
+type HistoricDisplayRow = {
+  row: PredictionReportRow;
+  fixture: NormalizedFixture;
+};
+
+function groupHistoricRows(items: HistoricDisplayRow[]) {
+  const map = new Map<
+    number,
+    {
+      leagueName: string;
+      leagueLogo: string | null;
+      items: HistoricDisplayRow[];
+    }
+  >();
+
+  for (const item of items) {
+    const f = item.fixture;
+    const cur = map.get(f.leagueId);
+    if (cur) {
+      cur.items.push(item);
+    } else {
+      map.set(f.leagueId, {
+        leagueName: f.leagueName,
+        leagueLogo: f.leagueLogo,
+        items: [item],
+      });
+    }
+  }
+
+  return [...map.values()]
+    .map((g) => ({
+      ...g,
+      items: [...g.items].sort((a, b) => a.fixture.timestamp - b.fixture.timestamp),
+    }))
+    .sort(
+      (a, b) =>
+        Math.min(...a.items.map((i) => i.fixture.timestamp)) -
+        Math.min(...b.items.map((i) => i.fixture.timestamp)),
+    );
 }
 
 export function IstoricView({ todayRo }: IstoricViewProps) {
@@ -163,26 +205,53 @@ export function IstoricView({ todayRo }: IstoricViewProps) {
     () => formatSelectedDayLong(selectedDateRo),
     [selectedDateRo],
   );
+  const displayRows = useMemo(
+    () =>
+      rows.map((row) => {
+        const fixture =
+          fixturesById[String(row.fixture_id)] ?? toSyntheticFinishedFixture(row);
+        return { row, fixture };
+      }),
+    [fixturesById, rows],
+  );
+  const groupedRows = useMemo(
+    () => groupHistoricRows(displayRows),
+    [displayRows],
+  );
 
   const metricsDisplay = loadingMetrics ? null : metrics;
   const isPublicTier = tier === "public_resolved_only";
 
   return (
     <div className="flex flex-col gap-10">
-      <div className="grid gap-3 sm:grid-cols-2">
-        <MetricTile
-          label="Total analize"
-          value={metricsDisplay ? String(metricsDisplay.total) : "-"}
-        />
-        <MetricTile
-          label="Acuratețe motor"
-          value={
-            metricsDisplay?.accuracyPct != null
-              ? `${metricsDisplay.accuracyPct}%`
-              : "-"
-          }
-        />
-      </div>
+      <section aria-label="Performanță predicții">
+        <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-5">
+          <MetricTile
+            label="Meciuri analizate"
+            value={metricsDisplay ? String(metricsDisplay.total) : "-"}
+          />
+          <MetricTile
+            label="Predicții câștigătoare"
+            value={metricsDisplay ? String(metricsDisplay.won) : "-"}
+          />
+          <MetricTile
+            label="Predicții pierzătoare"
+            value={metricsDisplay ? String(metricsDisplay.lost) : "-"}
+          />
+          <MetricTile
+            label="Predicții nepublicate"
+            value={metricsDisplay ? String(metricsDisplay.voided) : "-"}
+          />
+          <MetricTile
+            label="Rată de succes"
+            value={
+              metricsDisplay?.accuracyPct != null
+                ? `${metricsDisplay.accuracyPct}%`
+                : "-"
+            }
+          />
+        </div>
+      </section>
 
       <section className="w-full min-w-0">
         <IstoricCalendar
@@ -215,22 +284,47 @@ export function IstoricView({ todayRo }: IstoricViewProps) {
               </p>
             </Card>
           ) : (
-            <ul className="grid grid-cols-1 gap-2 [grid-auto-rows:minmax(0,_auto)] md:grid-cols-2 md:gap-2.5 [&>*]:min-w-0">
-              {rows.map((row) => {
-                const fixture =
-                  fixturesById[String(row.fixture_id)] ??
-                  toSyntheticFinishedFixture(row);
-                return (
-                  <li key={`${row.fixture_id}-${row.date_ro}`} className="min-w-0">
-                    <PredictionCard
-                      fixture={fixture}
-                      unlocked={tier === "full"}
-                      prediction={row.payload}
-                    />
-                  </li>
-                );
-              })}
-            </ul>
+            <div className="flex flex-col divide-y divide-border/80">
+              {groupedRows.map((group) => (
+                <section
+                  key={`${group.leagueName}-${group.items[0]?.fixture.leagueId}`}
+                  className="min-w-0 pt-10 first:pt-0"
+                  aria-labelledby={`hist-league-${group.items[0]?.fixture.leagueId}`}
+                >
+                  <div className="mb-4 flex items-center gap-3">
+                    {group.leagueLogo ? (
+                      <Image
+                        src={group.leagueLogo}
+                        alt=""
+                        width={32}
+                        height={32}
+                        className="size-8 object-contain"
+                      />
+                    ) : null}
+                    <h3
+                      id={`hist-league-${group.items[0]?.fixture.leagueId}`}
+                      className="pb-text-card-title text-lg"
+                    >
+                      {group.leagueName}
+                    </h3>
+                  </div>
+                  <ul className="grid grid-cols-1 gap-2 [grid-auto-rows:minmax(0,_auto)] md:grid-cols-2 md:gap-2.5 [&>*]:min-w-0">
+                    {group.items.map(({ row, fixture }) => (
+                      <li
+                        key={`${row.fixture_id}-${row.date_ro}`}
+                        className="min-w-0"
+                      >
+                        <PredictionCard
+                          fixture={fixture}
+                          unlocked={tier === "full"}
+                          prediction={row.payload}
+                        />
+                      </li>
+                    ))}
+                  </ul>
+                </section>
+              ))}
+            </div>
           )}
         </div>
       </section>

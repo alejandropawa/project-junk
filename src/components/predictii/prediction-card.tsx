@@ -5,6 +5,7 @@ import {
   CircleMinus,
   Lock,
   Timer,
+  TimerReset,
 } from "lucide-react";
 import { memo, useMemo } from "react";
 import { combinedDecimalFromPicks } from "@/lib/predictions/combined-odds";
@@ -52,7 +53,7 @@ const PREDICTION_AWAITING_SHELL =
   "rounded-xl border border-white/[0.05] bg-black/[0.14] dark:bg-black/[0.17]";
 
 const PREDICTION_PICK_LIST_CLASS =
-  "mt-3 grid min-h-[5.25rem] content-start gap-2.5";
+  "mt-3 grid content-start gap-2.5";
 
 /** Aliniere ca `FixtureRow` (Meciuri): minut centru, LIVE dreapta, deasupra rândului scor. */
 const MATCH_STATUS_ROW =
@@ -97,6 +98,16 @@ function scoreLine(f: NormalizedFixture) {
   if (f.homeGoals == null || f.awayGoals == null)
     return { home: "-", away: "-" };
   return { home: String(f.homeGoals), away: String(f.awayGoals) };
+}
+
+function hasAddedTime(label: string | null): boolean {
+  return Boolean(label?.includes("+"));
+}
+
+function predictionPickListHeightClass(pickCount: number | undefined): string {
+  if ((pickCount ?? 0) >= 3) return "min-h-[5.25rem]";
+  if ((pickCount ?? 0) === 2) return "min-h-[3.5rem]";
+  return "";
 }
 
 function resolvePredictionStatusLabel(params: {
@@ -556,7 +567,7 @@ const PredictionCardInner = ({
                   {fixture.bucket === "live" && liveClockLabel ? (
                     <span
                       className={cn(
-                        "block text-center text-xs font-medium text-destructive",
+                        "inline-flex items-center justify-center gap-1 text-center text-xs font-medium text-destructive",
                         liveClockLabel.endsWith("'") || liveClockLabel.endsWith("′")
                           ? "tabular-nums"
                           : "tracking-tight",
@@ -564,6 +575,9 @@ const PredictionCardInner = ({
                       )}
                     >
                       {liveClockLabel}
+                      {hasAddedTime(liveClockLabel) ? (
+                        <TimerReset className="size-3.5 shrink-0" strokeWidth={2} aria-hidden />
+                      ) : null}
                     </span>
                   ) : fixture.bucket === "finished" ? (
                     <span className="block text-center text-xs font-medium tabular-nums text-foreground/85">
@@ -782,7 +796,12 @@ const PredictionCardInner = ({
                   Predicție
                 </p>
               </div>
-              <ul className={PREDICTION_PICK_LIST_CLASS}>
+              <ul
+                className={cn(
+                  PREDICTION_PICK_LIST_CLASS,
+                  predictionPickListHeightClass(prediction?.picks?.length),
+                )}
+              >
                 {prediction!.picks!.map((p, i) => {
                   const ro = marketDisplayRo(p);
                   const pickLine = predictionPickLineRo(p);

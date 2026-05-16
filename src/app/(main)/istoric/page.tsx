@@ -9,9 +9,10 @@ export default async function IstoricPage() {
   return (
     <main className="relative mx-auto w-full pb-shell-inner flex-1 px-6 py-12 md:px-10 md:py-16">
       <div className="mb-8">
-        <h1 className="pb-text-section">Istoric predicții</h1>
+        <h1 className="pb-text-section">Performanță predicții</h1>
       </div>
       <IstoricView todayRo={todayRo} />
     </main>
   );
 }
+

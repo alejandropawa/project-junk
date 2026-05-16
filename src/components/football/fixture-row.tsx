@@ -1,4 +1,5 @@
 import Image from "next/image";
+import { TimerReset } from "lucide-react";
 import { LiveBadge } from "@/components/ds/live-badge";
 import { liveFixtureClockLabel } from "@/lib/football-api/live-clock-display";
 import type { NormalizedFixture } from "@/lib/football-api/types";
@@ -16,6 +17,10 @@ const MID_W = "w-[4.25rem] shrink-0 flex-none px-1 sm:w-20"; // minut + scor
 
 /** Pulse CSS (tailwind); nu rulează la `prefers-reduced-motion`. */
 const LIVE_STATUS_PULSE = "animate-pulse motion-reduce:animate-none";
+
+function hasAddedTime(label: string | null): boolean {
+  return Boolean(label?.includes("+"));
+}
 
 function formatKickoff(iso: string) {
   return new Date(iso).toLocaleTimeString("ro-RO", {
@@ -104,7 +109,7 @@ export function FixtureRow({
             ) : clockLabel ? (
               <span
                 className={cn(
-                  "block text-center text-xs font-medium text-destructive",
+                  "inline-flex items-center justify-center gap-1 text-center text-xs font-medium text-destructive",
                   clockLabel.endsWith("'") || clockLabel.endsWith("′")
                     ? "tabular-nums"
                     : "tracking-tight",
@@ -112,6 +117,9 @@ export function FixtureRow({
                 )}
               >
                 {clockLabel}
+                {hasAddedTime(clockLabel) ? (
+                  <TimerReset className="size-3.5 shrink-0" strokeWidth={2} aria-hidden />
+                ) : null}
               </span>
             ) : null}
           </div>
