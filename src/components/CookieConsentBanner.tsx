@@ -42,14 +42,14 @@ export function CookieConsentBanner() {
 
   return (
     <section
-      aria-label="Consimtamant cookie-uri"
+      aria-label="Consimțământ cookie-uri"
       className="fixed inset-x-0 bottom-0 z-[80] border-t border-border bg-background/95 px-4 py-4 shadow-[0_-18px_40px_-24px_rgba(0,0,0,0.7)] backdrop-blur-xl sm:px-6"
     >
       <div className="mx-auto flex w-full max-w-5xl flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
         <p className="max-w-3xl text-sm leading-relaxed text-foreground-secondary">
-          Probix foloseste cookie-uri necesare pentru autentificare, sesiuni si
-          functionarea platformei. Nu folosim cookie-uri pentru publicitate
-          personalizata. Detalii in{" "}
+          Probix folosește cookie-uri necesare pentru autentificare, sesiuni și
+          funcționarea platformei. Nu folosim cookie-uri pentru publicitate
+          personalizată. Detalii în{" "}
           <Link
             href="/politica-cookies-disclaimer"
             className="font-medium text-accent-foreground underline underline-offset-4 hover:text-foreground"
@@ -61,9 +61,9 @@ export function CookieConsentBanner() {
         <Button
           type="button"
           onClick={accept}
-          className="h-11 shrink-0 px-5 text-sm font-semibold"
+          className="h-11 shrink-0 cursor-pointer px-5 text-sm font-semibold"
         >
-          Am inteles
+          Am înțeles
         </Button>
       </div>
     </section>
