@@ -63,6 +63,8 @@ const MATCH_MID =
 
 const UPCOMING_AWAITING_MESSAGE =
   "Predicția pentru acest meci este generată automat cu aproximativ 10 minute înainte de start.";
+const NO_BET_MESSAGE =
+  "Probix evită acest meci: profilul este prea volatil sau selecțiile disponibile nu sunt suficient de solide pentru publicare.";
 
 export type PredictionCardProps = {
   fixture: NormalizedFixture;
@@ -435,7 +437,10 @@ const PredictionCardInner = ({
    * Cu predicție (pre-live) sau live/final — afișăm ca înainte.
    */
   const showMeciInCifre =
-    fullPredictionReveal && Boolean(prediction?.picks?.length);
+    fullPredictionReveal &&
+    (Boolean(prediction?.picks?.length) ||
+      fixture.bucket === "live" ||
+      fixture.bucket === "finished");
 
   const progressRowsForStrip = useMemo(() => {
     if (!prediction?.picks?.length) return [];
@@ -682,14 +687,13 @@ const PredictionCardInner = ({
             </div>
           </div>
         ) : noBetPrediction ? (
-          <div className="flex gap-2.5 p-3.5 text-[13px] leading-relaxed text-foreground/88 sm:p-4">
+          <div className="flex w-full min-w-0 flex-col items-center justify-center gap-5 px-4 py-10 text-center text-foreground/88 sm:px-6 sm:py-12 md:px-8">
             <CircleMinus
-              className="mt-0.5 size-4 shrink-0 text-amber-300/80"
+              className="size-6 shrink-0 text-amber-300/80"
               aria-hidden
             />
-            <p className="min-w-0">
-              Probix evitÄƒ acest meci: profil volatil sau pool de selecÈ›ii prea
-              slab pentru o predicÈ›ie publicabilÄƒ.
+            <p className="w-full max-w-none text-pretty text-sm leading-[1.65] text-foreground/90 sm:text-[13px] sm:leading-relaxed">
+              {NO_BET_MESSAGE}
             </p>
           </div>
         ) : fullPredictionReveal && !prediction?.picks?.length ? (

@@ -6,10 +6,12 @@ import {
   engineOutputToPredictionPayload,
   noBetToPredictionPayload,
 } from "@/lib/predictions/map-engine-output";
+import { combinedDecimalFromPicks } from "@/lib/predictions/combined-odds";
 import {
   fetchPredictionsForDate,
   upsertPrediction,
 } from "@/lib/predictions/prediction-repository";
+import type { PredictionPayload } from "@/lib/predictions/types";
 import { runProbixEngineDecision } from "@/lib/probix-engine/run-engine";
 import { loadProbixLearningContext } from "@/lib/probix-evolution/learning-context";
 import { createServiceRoleClient } from "@/lib/supabase/admin";
@@ -20,6 +22,7 @@ export const dynamic = "force-dynamic";
 export const maxDuration = 300;
 
 const TEN_MIN_MS = 10 * 60 * 1000;
+const MIN_PUBLISHED_DECIMAL = 2;
 
 const ENGINE_ATTEMPTS = 4;
 const UPSERT_ATTEMPTS = 3;
@@ -27,6 +30,14 @@ const RETRY_DELAY_MS = 1_250;
 
 function sleep(ms: number): Promise<void> {
   return new Promise((resolve) => setTimeout(resolve, ms));
+}
+
+function isPublishablePrediction(payload: PredictionPayload): boolean {
+  if (payload.predictionOutcome === "NO_BET") return true;
+  if (!payload.picks?.length) return false;
+  const combined =
+    payload.estimatedCombinedDecimal ?? combinedDecimalFromPicks(payload.picks);
+  return combined != null && combined >= MIN_PUBLISHED_DECIMAL;
 }
 
 /**
@@ -110,6 +121,11 @@ export async function GET(req: Request) {
 
     const now = Date.now();
     const existingByFixtureId = await fetchPredictionsForDate(sb, data.date);
+    for (const [fixtureId, payload] of existingByFixtureId) {
+      if (!isPublishablePrediction(payload)) {
+        existingByFixtureId.delete(fixtureId);
+      }
+    }
 
     const candidates = data.fixtures.filter((f) => {
       if (hasFixtureFilter && f.id !== fixtureFilterId) return false;

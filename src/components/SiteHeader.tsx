@@ -170,14 +170,27 @@ export function SiteHeader() {
   }, []);
 
   useEffect(() => {
-    function onProbixAuthOpen(ev: Event) {
+    async function onProbixAuthOpen(ev: Event) {
       const e = ev as CustomEvent<{ mode?: string }>;
       const m = e.detail?.mode;
-      if (user && (m === "login" || m === "register")) {
+      if (m !== "login" && m !== "register" && m !== "account") return;
+
+      const currentUser =
+        user ??
+        (await (async () => {
+          const supabase = createClient();
+          if (!supabase) return null;
+          const { data } = await supabase.auth.getUser();
+          return data.user;
+        })());
+
+      if (currentUser) {
+        setUser(currentUser);
         setMode("account");
         setOpen(true);
         return;
       }
+
       if (m === "login" || m === "register") {
         openAuth(m);
       }

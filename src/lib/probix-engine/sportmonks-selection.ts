@@ -515,12 +515,16 @@ export function buildSportmonksPredictionDecision(
     })
     .sort((a, b) => b.score - a.score);
 
-  const selected =
-    ranked.find((r) => r.decimal >= TARGET_MIN && r.decimal <= TARGET_MAX) ?? ranked[0];
+  const selected = ranked.find(
+    (r) => r.decimal >= TARGET_MIN && r.decimal <= TARGET_MAX,
+  );
   if (!selected) {
     return noBetFromDebug(
-      firstRejectedReason ?? "insufficient_edge",
-      firstRejectedDebug ?? { rejectedCandidates: [], comboRejectedReason: "insufficient_edge" },
+      firstRejectedReason ?? "insufficient_candidate_pool",
+      firstRejectedDebug ?? {
+        rejectedCandidates: [],
+        comboRejectedReason: "insufficient_candidate_pool",
+      },
     );
   }
 

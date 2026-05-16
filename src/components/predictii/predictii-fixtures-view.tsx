@@ -158,6 +158,20 @@ export function PredictiiFixturesView({
     return hasLive || hasFinishedPendingCombo || hasImminentKickoff;
   }, [fixtures, predictionsByFixtureId]);
 
+  const shouldRefreshMissingUnlockedPredictions = useMemo(() => {
+    if (!predictionsUnlocked) return false;
+    return fixtures.some((f) => {
+      if (
+        f.bucket !== "live" &&
+        f.bucket !== "finished" &&
+        !upcomingFixtureWithinKickoffPollWindow(f)
+      ) {
+        return false;
+      }
+      return !predictionsByFixtureId[f.id]?.picks?.length;
+    });
+  }, [fixtures, predictionsByFixtureId, predictionsUnlocked]);
+
   useEffect(() => {
     if (!ok || !shouldPollFixturesLiveApi) return;
 
@@ -200,6 +214,14 @@ export function PredictiiFixturesView({
       window.clearInterval(id);
     };
   }, [ok, shouldPollFixturesLiveApi]);
+
+  useEffect(() => {
+    if (!ok || !shouldRefreshMissingUnlockedPredictions) return;
+    const id = window.setInterval(() => {
+      router.refresh();
+    }, LIVE_FIXTURE_POLL_INTERVAL_MS);
+    return () => window.clearInterval(id);
+  }, [ok, router, shouldRefreshMissingUnlockedPredictions]);
 
   const filtered = useMemo(
     () => filterForTab(fixtures, tab),
